@@ -101,6 +101,12 @@ npm run build  # Production build
 
 Report issues at: [GitHub Issues](https://github.com/cameronsjo/saved-reddit-extractor/issues)
 
+## Support the Project
+
+If you find this plugin helpful, consider supporting its development:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/cameronsjo)
+
 ## License
 
 MIT
