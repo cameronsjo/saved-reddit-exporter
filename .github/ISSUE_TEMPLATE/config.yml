@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/cameronsjo/saved-reddit-exporter/blob/main/README.md
+    about: Check the README for setup instructions and usage guides
+  - name: 🛠️ Development Guide
+    url: https://github.com/cameronsjo/saved-reddit-exporter/blob/main/DEVELOPMENT.md
+    about: Information for developers and contributors
+  - name: 💬 Discussions
+    url: https://github.com/cameronsjo/saved-reddit-exporter/discussions
+    about: Ask questions and discuss the plugin with the community
