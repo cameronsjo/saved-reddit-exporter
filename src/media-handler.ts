@@ -80,6 +80,11 @@ export class MediaHandler {
     shouldDownloadMedia(mediaInfo: MediaInfo, url: string): boolean {
         const { mediaType } = mediaInfo;
         
+        // Don't try to download gallery pages or non-direct media URLs
+        if (this.isGalleryUrl(url)) {
+            return false;
+        }
+        
         // Check if media type should be downloaded based on settings
         switch (mediaType) {
             case 'image':
@@ -109,10 +114,57 @@ export class MediaHandler {
         }
     }
 
+    private isGalleryUrl(url: string): boolean {
+        const urlLower = url.toLowerCase();
+        
+        // Imgur galleries and albums
+        if (urlLower.includes('imgur.com/gallery/') || urlLower.includes('imgur.com/a/')) {
+            return true;
+        }
+        
+        // Reddit galleries
+        if (urlLower.includes('reddit.com/gallery/')) {
+            return true;
+        }
+        
+        // Other common gallery patterns
+        if (urlLower.includes('/gallery/') || urlLower.includes('/album/')) {
+            return true;
+        }
+        
+        return false;
+    }
+
     generateMediaFilename(data: RedditItemData, url: string, mediaInfo: MediaInfo): string {
         const urlObj = new URL(url);
         const pathname = urlObj.pathname;
-        const extension = pathname.split('.').pop() || 'unknown';
+        
+        // Extract just the filename part, handling gallery URLs
+        const pathParts = pathname.split('/');
+        const lastPart = pathParts[pathParts.length - 1];
+        
+        // For URLs without file extensions (like gallery URLs), use a default
+        let extension = 'unknown';
+        if (lastPart.includes('.')) {
+            extension = lastPart.split('.').pop() || 'unknown';
+        } else if (mediaInfo.mediaType) {
+            // Use media type to guess extension
+            switch (mediaInfo.mediaType) {
+                case 'image':
+                case 'reddit-image':
+                case 'imgur':
+                    extension = 'jpg';
+                    break;
+                case 'gif-platform':
+                    extension = 'gif';
+                    break;
+                case 'video':
+                    extension = 'mp4';
+                    break;
+                default:
+                    extension = 'unknown';
+            }
+        }
         
         // Create a base filename from the Reddit post title
         const baseTitle = this.sanitizeFileName(data.title || 'reddit-media');
@@ -121,7 +173,10 @@ export class MediaHandler {
         // Add Reddit ID for uniqueness
         const redditId = data.id || 'unknown';
         
-        return `${shortTitle}-${redditId}.${extension}`;
+        // Also include last part of URL for uniqueness (sanitized)
+        const urlPart = this.sanitizeFileName(lastPart).substring(0, 20);
+        
+        return `${shortTitle}-${redditId}-${urlPart}.${extension}`;
     }
 
     async downloadMediaFile(url: string, filename: string): Promise<string | null> {

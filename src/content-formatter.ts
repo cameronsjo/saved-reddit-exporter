@@ -137,8 +137,9 @@ export class ContentFormatter {
             case 'imgur':
                 content += `📸 **Image**\n\n`;
                 if (localPath) {
-                    content += `![${data.title}](./${localPath})\n\n`;
-                    content += `*Downloaded locally: ${localPath}*\n\n`;
+                    const filename = this.extractFilename(localPath);
+                    content += `![[${filename}]]\n\n`;
+                    content += `*Downloaded locally: ${filename}*\n\n`;
                 } else {
                     content += `![${data.title}](${url})\n\n`;
                 }
@@ -151,8 +152,9 @@ export class ContentFormatter {
             case 'video':
                 content += `🎥 **Video**\n\n`;
                 if (localPath) {
-                    content += `<video controls>\n  <source src="./${localPath}" type="video/mp4">\n  Your browser does not support the video tag.\n</video>\n\n`;
-                    content += `*Downloaded locally: ${localPath}*\n\n`;
+                    const filename = this.extractFilename(localPath);
+                    content += `![[${filename}]]\n\n`;
+                    content += `*Downloaded locally: ${filename}*\n\n`;
                 } else {
                     content += `[📹 Watch Video](${url})\n\n`;
                 }
@@ -185,8 +187,9 @@ export class ContentFormatter {
             case 'gif-platform':
                 content += `🎞️ **GIF/Animation**\n\n`;
                 if (localPath) {
-                    content += `![GIF Animation](./${localPath})\n\n`;
-                    content += `*Downloaded locally: ${localPath}*\n\n`;
+                    const filename = this.extractFilename(localPath);
+                    content += `![[${filename}]]\n\n`;
+                    content += `*Downloaded locally: ${filename}*\n\n`;
                 } else {
                     content += `[🎭 View Animation](${url})\n\n`;
                 }
@@ -221,6 +224,12 @@ export class ContentFormatter {
         }
 
         return content;
+    }
+
+    private extractFilename(filePath: string): string {
+        // Extract just the filename from the full path
+        const pathParts = filePath.split('/');
+        return pathParts[pathParts.length - 1];
     }
 
     private convertRedditMarkdown(text: string): string {
