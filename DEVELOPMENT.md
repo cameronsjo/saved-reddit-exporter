@@ -1,6 +1,6 @@
-# Development Guide
+# Development Guide - Saved Reddit Exporter
 
-This guide covers development setup and workflow for the Saved Reddit Posts Obsidian plugin.
+This guide covers the complete development workflow for the Saved Reddit Exporter Obsidian plugin, including feature branching, automated versioning, and release management.
 
 ## Prerequisites
 
@@ -9,75 +9,112 @@ This guide covers development setup and workflow for the Saved Reddit Posts Obsi
 - Obsidian app
 - Reddit account and app credentials
 
-## Initial Setup
+## 🚀 Quick Start
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/cameronsjo/saved-reddit-extractor.git
-   cd saved-reddit-extractor
-   ```
-
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
-
-3. **Create a development vault**
-   - Create a new Obsidian vault for testing
-   - Navigate to `.obsidian/plugins/` in your vault
-   - Create a symbolic link to your development folder:
-     ```bash
-     # Windows (run as Administrator)
-     mklink /D saved-reddit-posts "C:\path\to\saved-reddit-posts"
-
-     # macOS/Linux
-     ln -s /path/to/saved-reddit-posts saved-reddit-posts
-     ```
-
-4. **Create Reddit App**
-   - Go to https://www.reddit.com/prefs/apps
-   - Create a new app with type "script"
-   - Set redirect URI to `obsidian://reddit-saved`
-   - Note your Client ID and Secret
-
-## Development Workflow
-
-### Building the Plugin
-
-**Development build with auto-copy to vault:**
+### Initial Setup
 ```bash
-npm run dev:watch
-```
-This watches for changes, rebuilds automatically, and copies files to `.vault` folder.
+# Clone and setup
+git clone https://github.com/cameronsjo/saved-reddit-exporter.git
+cd saved-reddit-exporter
+npm install
 
-**One-time build and copy:**
-```bash
-npm run build:local
-```
-Builds once and copies files to vault for testing.
-
-**Copy existing files to vault:**
-```bash
-npm run copy
-```
-Just copies the current built files without rebuilding.
-
-**Production build:**
-```bash
-npm run build
-```
-Creates optimized build without sourcemaps (for releases).
-
-### Code Quality
-
-**Run linter:**
-```bash
-npm run lint
+# Create local test vault
+mkdir .vault
+# Configure .vault as an Obsidian vault in the Obsidian app
 ```
 
-**Fix linting issues:**
+### Development Commands
 ```bash
-npm run lint:fix
+npm run dev              # Single build
+npm run dev:watch        # Auto-build on file changes + copy to vault
+npm run build            # Production build
+npm run build:local      # Build + copy to test vault
+npm run copy             # Copy existing build to test vault
+npm run lint             # Check code style
+npm run lint:fix         # Auto-fix code style issues
+```
+
+## 🌿 Feature Branch Workflow
+
+### Creating a Feature Branch
+```bash
+# Start from main and pull latest
+git checkout main
+git pull origin main
+
+# Create and checkout feature branch
+git checkout -b feature/oauth-improvements
+# OR
+git checkout -b fix/media-download-bug
+# OR 
+git checkout -b chore/update-dependencies
+```
+
+### Branch Naming Convention
+- `feature/description` - New features
+- `fix/description` - Bug fixes
+- `chore/description` - Maintenance tasks
+- `docs/description` - Documentation updates
+- `refactor/description` - Code refactoring
+
+### Development on Feature Branch
+```bash
+# Make your changes
+npm run dev:watch        # Start development mode
+
+# Test in Obsidian
+# Changes auto-copy to .vault for immediate testing
+
+# Commit changes with conventional commits
+git add .
+git commit -m "feat: add automatic OAuth token refresh"
+git push origin feature/oauth-improvements
+```
+
+### Merging Feature Branches
+```bash
+# Option 1: Merge via GitHub PR (Recommended)
+# 1. Create Pull Request on GitHub
+# 2. Review and merge via GitHub interface
+# 3. Delete branch after merge
+
+# Option 2: Direct merge (for small changes)
+git checkout main
+git pull origin main
+git merge feature/oauth-improvements
+git push origin main
+git branch -d feature/oauth-improvements  # Delete local branch
+```
+
+## 🏷️ Automated Versioning & Releases
+
+### Version Bump Script
+We use automated versioning that updates both `manifest.json` and `versions.json`:
+
+```bash
+# Patch version (1.0.0 → 1.0.1)
+npm run version patch
+
+# Minor version (1.0.0 → 1.1.0)  
+npm run version minor
+
+# Major version (1.0.0 → 2.0.0)
+npm run version major
+```
+
+### What the Version Script Does
+1. **Updates `manifest.json`** with new version
+2. **Updates `versions.json`** with version history
+3. **Stages the changes** for git
+4. **Creates a git commit** with version message
+5. **Creates a git tag** (without "v" prefix for Obsidian compatibility)
+6. **Pushes tag and commit** to trigger release
+
+### Manual Version Control (if needed)
+```bash
+# Create version manually
+git tag -a 1.0.1 -m "Release 1.0.1 - Brief description"
+git push origin 1.0.1
 ```
 
 ### Testing
