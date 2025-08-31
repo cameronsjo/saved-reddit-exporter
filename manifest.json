@@ -1,0 +1,11 @@
+{
+	"id": "saved-reddit-posts",
+	"name": "Saved Reddit Posts",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Import and manage your saved Reddit posts and comments in Obsidian",
+	"author": "Cameron Sjo",
+	"authorUrl": "https://github.com/cameronsjo",
+	"isDesktopOnly": false,
+	"icon": "icon.svg"
+}
