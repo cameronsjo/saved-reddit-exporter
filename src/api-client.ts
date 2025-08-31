@@ -21,8 +21,6 @@ export class RedditApiClient {
         const reset = parseInt(response.headers['x-ratelimit-reset'] || '0');
         const used = response.headers['x-ratelimit-used'] || 'unknown';
         
-        console.log(`Reddit API: ${remaining} requests remaining, used: ${used}`);
-        
         // If we're getting close to the limit or hit it
         if (remaining <= 10) {
             const resetTime = reset * 1000; // Convert to milliseconds
@@ -32,8 +30,6 @@ export class RedditApiClient {
             if (remaining === 0) {
                 new Notice(`Rate limited! Waiting ${Math.round(waitTime / 1000)}s before continuing...`);
                 console.warn(`Reddit API rate limit hit. Waiting ${waitTime}ms`);
-            } else {
-                console.log(`Reddit API rate limit close (${remaining} remaining). Adding delay.`);
             }
             
             return waitTime;
@@ -90,7 +86,6 @@ export class RedditApiClient {
             pageCount++;
             const pageSize = Math.min(REDDIT_PAGE_SIZE, this.settings.fetchLimit - items.length);
             
-            console.log(`Fetching page ${pageCount}/${maxPages}, items so far: ${items.length}`);
             
             await this.ensureValidToken();
             
@@ -117,7 +112,6 @@ export class RedditApiClient {
                 }
             } else {
                 hasMore = false;
-                console.log('No more items returned from Reddit API');
             }
 
             // Prevent infinite loops
@@ -128,7 +122,6 @@ export class RedditApiClient {
         }
 
         const finalCount = Math.min(items.length, this.settings.fetchLimit);
-        console.log(`Fetch complete: ${finalCount} items (${pageCount} pages requested)`);
         
         return items.slice(0, finalCount);
     }

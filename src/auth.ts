@@ -188,12 +188,10 @@ class AuthCodeModal extends Modal {
         contentEl.createEl('h2', { text: 'Reddit Authorization' });
         
         const instructions = contentEl.createDiv();
-        instructions.innerHTML = `
-            <p>1. After approving the Reddit authorization, you'll be redirected to a page that cannot load</p>
-            <p>2. Copy the authorization code from the URL in your browser address bar</p>
-            <p>3. The code appears after "code=" in the URL</p>
-            <p>4. Paste it below:</p>
-        `;
+        instructions.createEl('p', { text: '1. After approving the Reddit authorization, you\'ll be redirected to a page that cannot load' });
+        instructions.createEl('p', { text: '2. Copy the authorization code from the URL in your browser address bar' });
+        instructions.createEl('p', { text: '3. The code appears after "code=" in the URL' });
+        instructions.createEl('p', { text: '4. Paste it below:' });
 
         const inputContainer = contentEl.createDiv();
         inputContainer.style.margin = '20px 0';

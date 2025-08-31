@@ -29,11 +29,18 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         containerEl.createEl('h2', { text: 'Reddit Saved Posts Settings' });
 
         const setupInstructions = containerEl.createDiv();
-        setupInstructions.innerHTML = `
-            <p>To use this plugin, you need to create a Reddit app at 
-            <a href="https://www.reddit.com/prefs/apps" target="_blank">Reddit Apps</a></p>
-            <p><strong>Important:</strong> Set the redirect URI to <code>http://localhost:${this.settings.oauthRedirectPort}</code></p>
-        `;
+        
+        const firstPara = setupInstructions.createEl('p');
+        firstPara.createSpan({ text: 'To use this plugin, you need to create a Reddit app at ' });
+        firstPara.createEl('a', { 
+            text: 'Reddit Apps',
+            href: 'https://www.reddit.com/prefs/apps'
+        }).setAttr('target', '_blank');
+        
+        const secondPara = setupInstructions.createEl('p');
+        secondPara.createEl('strong', { text: 'Important:' });
+        secondPara.createSpan({ text: ' Set the redirect URI to ' });
+        secondPara.createEl('code', { text: `http://localhost:${this.settings.oauthRedirectPort}` });
 
         new Setting(containerEl)
             .setName('Client ID')
@@ -86,13 +93,16 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         rateLimitInfo.style.padding = '10px';
         rateLimitInfo.style.borderRadius = '4px';
         rateLimitInfo.style.marginBottom = '15px';
-        rateLimitInfo.innerHTML = `
-            <strong>ℹ️ Reddit API Limits:</strong><br>
-            • Maximum 1,000 saved items can be fetched<br>
-            • Rate limiting applies (60 requests/minute)<br>
-            • Large fetches may take several minutes<br>
-            • Progress will be shown during import
-        `;
+        
+        const limitTitle = rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API Limits:' });
+        rateLimitInfo.createEl('br');
+        rateLimitInfo.createSpan({ text: '• Maximum 1,000 saved items can be fetched' });
+        rateLimitInfo.createEl('br');
+        rateLimitInfo.createSpan({ text: '• Rate limiting applies (60 requests/minute)' });
+        rateLimitInfo.createEl('br');
+        rateLimitInfo.createSpan({ text: '• Large fetches may take several minutes' });
+        rateLimitInfo.createEl('br');
+        rateLimitInfo.createSpan({ text: '• Progress will be shown during import' });
 
         new Setting(containerEl)
             .setName('Save Location')

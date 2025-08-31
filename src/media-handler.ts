@@ -151,13 +151,11 @@ export class MediaHandler {
             // Check if file already exists
             const existingFile = this.app.vault.getAbstractFileByPath(filePath);
             if (existingFile) {
-                console.log(`Media file already exists: ${filePath}`);
                 return filePath;
             }
 
             // Save the file
             await this.app.vault.createBinary(filePath, response.arrayBuffer);
-            console.log(`Downloaded media: ${filePath}`);
             return filePath;
 
         } catch (error) {

@@ -169,7 +169,6 @@ export default class RedditSavedPlugin extends Plugin {
             // Check if this post has already been imported
             if (this.settings.skipExisting && existingIds.has(redditId)) {
                 skippedCount++;
-                console.log(`Skipping already imported post: ${redditId}`);
                 continue;
             }
 
