@@ -1,9 +1,9 @@
 {
-	"id": "saved-reddit-posts",
-	"name": "Saved Reddit Posts",
+	"id": "saved-reddit-exporter",
+	"name": "Saved Reddit Exporter",
 	"version": "1.0.0",
 	"minAppVersion": "1.0.0",
-	"description": "Import and manage your saved Reddit posts and comments as Markdown files.",
+	"description": "Export your saved Reddit posts and comments as Markdown files.",
 	"author": "Cameron Sjo",
 	"authorUrl": "https://github.com/cameronsjo",
 	"fundingUrl": "https://ko-fi.com/cameronsjo",

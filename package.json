@@ -1,7 +1,7 @@
 {
-  "name": "saved-reddit-posts",
+  "name": "saved-reddit-exporter",
   "version": "1.0.0",
-  "description": "Import and manage your saved Reddit posts and comments in Obsidian",
+  "description": "Export your saved Reddit posts and comments in Obsidian",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
@@ -17,6 +17,7 @@
     "obsidian",
     "obsidian-plugin",
     "reddit",
+    "export",
     "saved-posts"
   ],
   "author": "",

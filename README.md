@@ -1,13 +1,13 @@
-# Saved Reddit Posts - Obsidian Plugin
+# Saved Reddit Exporter - Obsidian Plugin
 
-Import and manage your saved Reddit posts and comments directly in Obsidian.
+Export and manage your saved Reddit posts and comments directly in Obsidian.
 
 ## Features
 
 - 🔐 Secure OAuth authentication with Reddit
-- 📥 Import saved posts and comments as Markdown files
+- 📥 Export saved posts and comments as Markdown files
 - 🗂️ Organized with structured frontmatter metadata
-- 🔄 Optional auto-unsave from Reddit after import
+- 🔄 Optional auto-unsave from Reddit after export
 - 📝 Preserves Reddit markdown formatting
 - 🏷️ Automatic categorization by type (post/comment)
 - 🔍 Smart duplicate detection - won't re-download renamed files

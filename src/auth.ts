@@ -3,7 +3,7 @@ import { RedditSavedSettings } from './types';
 
 // Constants
 export const REDDIT_OAUTH_SCOPES = 'identity history read';
-export const REDDIT_USER_AGENT = 'Obsidian:saved-reddit-posts:v1.0.0';
+export const REDDIT_USER_AGENT = 'Obsidian:saved-reddit-exporter:v1.0.0';
 
 export class RedditAuth {
     private app: App;

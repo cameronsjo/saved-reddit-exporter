@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'fs';
 import { dirname, join } from 'path';
 
 const PLUGIN_FILES = ['main.js', 'manifest.json', 'styles.css', 'icon.svg'];
-const VAULT_PLUGIN_DIR = '.vault/.obsidian/plugins/saved-reddit-posts';
+const VAULT_PLUGIN_DIR = '.vault/.obsidian/plugins/saved-reddit-exporter';
 
 function ensureDirectoryExists(dirPath) {
     if (!existsSync(dirPath)) {
