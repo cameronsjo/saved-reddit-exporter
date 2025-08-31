@@ -10,6 +10,7 @@ export class RedditAuth {
     private settings: RedditSavedSettings;
     private saveSettings: () => Promise<void>;
     private authorizationInProgress = false;
+    private oauthServer: any | null = null;
 
     constructor(app: App, settings: RedditSavedSettings, saveSettings: () => Promise<void>) {
         this.app = app;
@@ -46,11 +47,170 @@ export class RedditAuth {
         (currentData as any).oauthState = state;
         await this.saveSettings();
 
-        new Notice('Copy the authorization code from the URL after approving...');
-        window.open(authUrl);
+        try {
+            // Start OAuth server
+            await this.startOAuthServer(state);
+            new Notice('Opening Reddit for authorization... Server started on port ' + this.settings.oauthRedirectPort);
+            window.open(authUrl);
+        } catch (error) {
+            console.error('Failed to start OAuth server:', error);
+            new Notice(`Failed to start OAuth server: ${error.message}. Falling back to manual entry...`);
+            // Fallback to manual code entry
+            this.showAuthCodeInput(state);
+        }
+    }
 
-        // Show input modal for the user to paste the code
-        this.showAuthCodeInput(state);
+    private async startOAuthServer(expectedState: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            try {
+                // Try to access Node.js http module through require (Electron environment)
+                const http = (window as any).require?.('http');
+                if (!http) {
+                    throw new Error('Node.js http module not available in this environment');
+                }
+
+                // Close any existing server
+                if (this.oauthServer) {
+                    this.oauthServer.close();
+                }
+
+                this.oauthServer = http.createServer((req: any, res: any) => {
+                    try {
+                        const url = new URL(req.url!, `http://localhost:${this.settings.oauthRedirectPort}`);
+                        const code = url.searchParams.get('code');
+                        const state = url.searchParams.get('state');
+                        const error = url.searchParams.get('error');
+
+                        // Send response to browser
+                        res.writeHead(200, { 'Content-Type': 'text/html' });
+                        
+                        if (error) {
+                            res.end(`
+                                <html>
+                                    <body>
+                                        <h1>Authorization Failed</h1>
+                                        <p>Error: ${error}</p>
+                                        <p>You can close this window and try again in Obsidian.</p>
+                                    </body>
+                                </html>
+                            `);
+                            this.authorizationInProgress = false;
+                            this.stopOAuthServer();
+                            return;
+                        }
+
+                        if (!code || !state) {
+                            res.end(`
+                                <html>
+                                    <body>
+                                        <h1>Authorization Error</h1>
+                                        <p>Missing authorization code or state parameter.</p>
+                                        <p>You can close this window and try again in Obsidian.</p>
+                                    </body>
+                                </html>
+                            `);
+                            return;
+                        }
+
+                        if (state !== expectedState) {
+                            res.end(`
+                                <html>
+                                    <body>
+                                        <h1>Authorization Error</h1>
+                                        <p>Invalid state parameter. Possible CSRF attack.</p>
+                                        <p>You can close this window and try again in Obsidian.</p>
+                                    </body>
+                                </html>
+                            `);
+                            this.authorizationInProgress = false;
+                            this.stopOAuthServer();
+                            return;
+                        }
+
+                        // Success response
+                        res.end(`
+                            <html>
+                                <body>
+                                    <h1>Authorization Successful!</h1>
+                                    <p>You have successfully authorized the Reddit Saved Posts plugin.</p>
+                                    <p>You can close this window and return to Obsidian.</p>
+                                    <script>window.close();</script>
+                                </body>
+                            </html>
+                        `);
+
+                        // Process the authorization code
+                        this.handleOAuthCallback(code, state, expectedState);
+                        
+                    } catch (err) {
+                        console.error('OAuth server error:', err);
+                        res.writeHead(500, { 'Content-Type': 'text/html' });
+                        res.end(`
+                            <html>
+                                <body>
+                                    <h1>Server Error</h1>
+                                    <p>An error occurred processing the authorization.</p>
+                                    <p>You can close this window and try again in Obsidian.</p>
+                                </body>
+                            </html>
+                        `);
+                    }
+                });
+
+                this.oauthServer.on('error', (err: any) => {
+                    if (err.code === 'EADDRINUSE') {
+                        reject(new Error(`Port ${this.settings.oauthRedirectPort} is already in use. Try a different port in settings.`));
+                    } else {
+                        reject(err);
+                    }
+                });
+
+                this.oauthServer.listen(this.settings.oauthRedirectPort, 'localhost', () => {
+                    resolve();
+                });
+
+                // Auto-close server after 5 minutes to prevent hanging
+                setTimeout(() => {
+                    if (this.oauthServer) {
+                        this.stopOAuthServer();
+                        if (this.authorizationInProgress) {
+                            new Notice('OAuth server timed out. Please try authenticating again.');
+                            this.authorizationInProgress = false;
+                        }
+                    }
+                }, 5 * 60 * 1000); // 5 minutes
+
+            } catch (error) {
+                reject(error);
+            }
+        });
+    }
+
+    private async handleOAuthCallback(code: string, receivedState: string, expectedState: string): Promise<void> {
+        try {
+            // Debug state comparison
+            console.log('State validation:', { receivedState, expectedState, match: receivedState === expectedState });
+            
+            // Validate state first
+            if (receivedState !== expectedState) {
+                throw new Error(`Invalid authorization state - possible CSRF attack. Expected: ${expectedState}, Received: ${receivedState}`);
+            }
+            await this.exchangeCodeForToken(code);
+            new Notice('Successfully authenticated with Reddit!');
+        } catch (error) {
+            console.error('OAuth callback error:', error);
+            new Notice(`Failed to authenticate: ${error.message}`);
+        } finally {
+            this.authorizationInProgress = false;
+            this.stopOAuthServer();
+        }
+    }
+
+    private stopOAuthServer(): void {
+        if (this.oauthServer) {
+            this.oauthServer.close();
+            this.oauthServer = null;
+        }
     }
 
     private showAuthCodeInput(state: string): void {
