@@ -119,7 +119,7 @@ describe('MediaHandler', () => {
   describe('isGalleryUrl', () => {
     it('should identify Imgur galleries', () => {
       const isGalleryUrl = (handler as any).isGalleryUrl;
-      
+
       expect(isGalleryUrl('https://imgur.com/gallery/example')).toBe(true);
       expect(isGalleryUrl('https://imgur.com/a/album123')).toBe(true);
       expect(isGalleryUrl('https://imgur.com/example.jpg')).toBe(false);
@@ -127,7 +127,7 @@ describe('MediaHandler', () => {
 
     it('should identify Reddit galleries', () => {
       const isGalleryUrl = (handler as any).isGalleryUrl;
-      
+
       expect(isGalleryUrl('https://reddit.com/gallery/abc123')).toBe(true);
       expect(isGalleryUrl('https://reddit.com/r/test')).toBe(false);
     });
@@ -186,7 +186,11 @@ describe('MediaHandler', () => {
         canEmbed: true,
       };
 
-      const result = handler.generateMediaFilename(data, 'https://i.redd.it/example.jpg', mediaInfo);
+      const result = handler.generateMediaFilename(
+        data,
+        'https://i.redd.it/example.jpg',
+        mediaInfo
+      );
 
       expect(result).toContain('Test Post Title');
       expect(result).toContain('abc123');
@@ -214,7 +218,11 @@ describe('MediaHandler', () => {
         canEmbed: true,
       };
 
-      const result = handler.generateMediaFilename(data, 'https://imgur.com/gallery/test', mediaInfo);
+      const result = handler.generateMediaFilename(
+        data,
+        'https://imgur.com/gallery/test',
+        mediaInfo
+      );
 
       expect(result).toContain('.jpg'); // Should default to jpg for images
     });
@@ -222,7 +230,9 @@ describe('MediaHandler', () => {
 
   describe('extractYouTubeId', () => {
     it('should extract YouTube video IDs', () => {
-      expect(handler.extractYouTubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+      expect(handler.extractYouTubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ')).toBe(
+        'dQw4w9WgXcQ'
+      );
       expect(handler.extractYouTubeId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
       expect(handler.extractYouTubeId('https://youtube.com/embed/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
       expect(handler.extractYouTubeId('https://example.com/video')).toBeNull();
@@ -232,7 +242,7 @@ describe('MediaHandler', () => {
   describe('sanitizeFileName', () => {
     it('should sanitize filenames', () => {
       const sanitizeFileName = (handler as any).sanitizeFileName;
-      
+
       expect(sanitizeFileName('Test: File? Name*')).toBe('Test- File- Name-');
       expect(sanitizeFileName('Normal filename')).toBe('Normal filename');
       expect(sanitizeFileName('')).toBe('Untitled');
@@ -241,7 +251,7 @@ describe('MediaHandler', () => {
 
     it('should handle Windows reserved names', () => {
       const sanitizeFileName = (handler as any).sanitizeFileName;
-      
+
       expect(sanitizeFileName('CON')).toBe('CON_file');
       expect(sanitizeFileName('PRN')).toBe('PRN_file');
       expect(sanitizeFileName('con')).toBe('con_file'); // Case insensitive

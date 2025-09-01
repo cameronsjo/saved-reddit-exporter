@@ -133,7 +133,7 @@ describe('ContentFormatter', () => {
     it('should extract filename from path', () => {
       const formatter = new ContentFormatter(mockSettings, mockMediaHandler);
       const extractFilename = (formatter as any).extractFilename;
-      
+
       expect(extractFilename('path/to/file.jpg')).toBe('file.jpg');
       expect(extractFilename('file.png')).toBe('file.png');
       expect(extractFilename('deep/nested/path/image.gif')).toBe('image.gif');

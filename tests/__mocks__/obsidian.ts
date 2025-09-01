@@ -8,19 +8,19 @@ export class Vault {
   getMarkdownFiles() {
     return [];
   }
-  
+
   getAbstractFileByPath(path: string) {
     return null;
   }
-  
+
   createFolder(path: string) {
     return Promise.resolve();
   }
-  
+
   create(path: string, content: string) {
     return Promise.resolve();
   }
-  
+
   createBinary(path: string, data: ArrayBuffer) {
     return Promise.resolve();
   }
@@ -35,27 +35,27 @@ export class MetadataCache {
 export class Plugin {
   app: App;
   settings: any;
-  
+
   constructor(app: App, manifest: any) {
     this.app = app;
   }
-  
+
   loadData() {
     return Promise.resolve({});
   }
-  
+
   saveData(data: any) {
     return Promise.resolve();
   }
-  
+
   addRibbonIcon(icon: string, title: string, callback: () => void) {
     return {};
   }
-  
+
   addCommand(command: any) {
     return {};
   }
-  
+
   addSettingTab(tab: any) {
     return {};
   }
@@ -63,21 +63,21 @@ export class Plugin {
 
 export class PluginSettingTab {
   constructor(app: App, plugin: Plugin) {}
-  
+
   display() {}
 }
 
 export class Setting {
   constructor(containerEl: HTMLElement) {}
-  
+
   setName(name: string) {
     return this;
   }
-  
+
   setDesc(desc: string) {
     return this;
   }
-  
+
   addText(callback: (text: any) => void) {
     const mockText = {
       setPlaceholder: () => mockText,
@@ -87,7 +87,7 @@ export class Setting {
     callback(mockText);
     return this;
   }
-  
+
   addToggle(callback: (toggle: any) => void) {
     const mockToggle = {
       setValue: () => mockToggle,
@@ -96,7 +96,7 @@ export class Setting {
     callback(mockToggle);
     return this;
   }
-  
+
   addButton(callback: (button: any) => void) {
     const mockButton = {
       setButtonText: () => mockButton,
@@ -117,11 +117,11 @@ export class Notice {
 export class Modal {
   app: App;
   contentEl = document.createElement('div');
-  
+
   constructor(app: App) {
     this.app = app;
   }
-  
+
   open() {}
   close() {}
   onOpen() {}
@@ -130,13 +130,13 @@ export class Modal {
 
 export class TextComponent {
   inputEl = document.createElement('input');
-  
+
   constructor(containerEl: HTMLElement) {}
-  
+
   getValue() {
     return '';
   }
-  
+
   setValue(value: string) {
     return this;
   }
