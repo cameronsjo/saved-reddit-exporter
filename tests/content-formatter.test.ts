@@ -181,4 +181,229 @@ describe('ContentFormatter', () => {
       expect(result).toContain('> Multi-line quote');
     });
   });
+
+  describe('formatCommentHeader', () => {
+    it('should format comment headers correctly', async () => {
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'commenter',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 50,
+        body: 'This is a comment',
+        is_submitter: true,
+        link_title: 'Original Post Title',
+        link_permalink: '/r/test/comments/post1',
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('type: reddit-comment');
+      expect(result).toContain('👑 **OP**');
+      expect(result).toContain('💬 Comment on: Original Post Title');
+      expect(result).toContain('This is a comment');
+    });
+
+    it('should handle comment without OP status', async () => {
+      const commentData = {
+        id: 'comment2',
+        name: 't1_comment2',
+        author: 'normaluser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment2',
+        score: 25,
+        body: 'Regular comment',
+        is_submitter: false,
+        link_title: 'Post Title',
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('type: reddit-comment');
+      expect(result).not.toContain('👑 **OP**');
+      expect(result).toContain('Regular comment');
+    });
+  });
+
+  describe('formatPostHeader', () => {
+    it('should format post headers with flair', async () => {
+      const postData = {
+        id: 'post1',
+        name: 't3_post1',
+        title: 'Test Post',
+        author: 'author1',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1',
+        score: 100,
+        num_comments: 5,
+        is_self: false,
+        url: 'https://example.com',
+        link_flair_text: 'Discussion',
+        upvote_ratio: 0.95,
+      };
+
+      const result = await formatter.formatRedditContent(postData, false);
+
+      expect(result).toContain('type: reddit-post');
+      expect(result).toContain('flair: "Discussion"');
+      expect(result).toContain('# Test Post');
+      expect(result).toContain('upvote_ratio: 0.95');
+    });
+
+    it('should handle self posts', async () => {
+      const postData = {
+        id: 'post2',
+        name: 't3_post2',
+        title: 'Self Post',
+        author: 'author2',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post2',
+        score: 75,
+        num_comments: 3,
+        is_self: true,
+        selftext: 'This is the post content.',
+      };
+
+      const result = await formatter.formatRedditContent(postData, false);
+
+      expect(result).toContain('post_type: text');
+      expect(result).toContain('This is the post content.');
+      expect(result).not.toContain('url:');
+    });
+  });
+
+  describe('formatMediaContent', () => {
+    it('should handle video content', async () => {
+      const postData = {
+        id: 'video1',
+        name: 't3_video1',
+        title: 'Video Post',
+        author: 'videomaker',
+        subreddit: 'videos',
+        created_utc: 1234567890,
+        permalink: '/r/videos/comments/video1',
+        score: 200,
+        num_comments: 15,
+        is_self: false,
+        url: 'https://youtube.com/watch?v=dQw4w9WgXcQ',
+        preview: {
+          images: [{ source: { url: 'https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg' } }],
+        },
+      };
+
+      // Mock media handler to return youtube type
+      mockMediaHandler.analyzeMedia.mockReturnValue({
+        type: 'video',
+        mediaType: 'youtube',
+        isMedia: true,
+        domain: 'youtube.com',
+        canEmbed: true,
+      });
+
+      const result = await formatter.formatRedditContent(postData, false);
+
+      expect(result).toContain('🎬 **YouTube Video**');
+      expect(result).toContain('▶️ Watch on YouTube');
+    });
+
+    it('should handle Reddit video content', async () => {
+      const postData = {
+        id: 'rvideo1',
+        name: 't3_rvideo1',
+        title: 'Reddit Video',
+        author: 'videouser',
+        subreddit: 'funny',
+        created_utc: 1234567890,
+        permalink: '/r/funny/comments/rvideo1',
+        score: 150,
+        num_comments: 8,
+        is_self: false,
+        url: 'https://v.redd.it/abc123',
+      };
+
+      // Mock media handler to return reddit-video type
+      mockMediaHandler.analyzeMedia.mockReturnValue({
+        type: 'video',
+        mediaType: 'reddit-video',
+        isMedia: true,
+        domain: 'v.redd.it',
+        canEmbed: false,
+      });
+
+      const result = await formatter.formatRedditContent(postData, false);
+
+      expect(result).toContain('🎥 **Reddit Video**');
+      expect(result).toContain('⚠️ Reddit-hosted video');
+    });
+  });
+
+  describe('edge cases and error handling', () => {
+    it('should handle missing preview data', async () => {
+      const postData = {
+        id: 'nopreview',
+        name: 't3_nopreview',
+        title: 'No Preview Post',
+        author: 'author',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/nopreview',
+        score: 50,
+        num_comments: 2,
+        is_self: false,
+        url: 'https://example.com/image.jpg',
+      };
+
+      const result = await formatter.formatRedditContent(postData, false);
+
+      expect(result).toContain('No Preview Post');
+      expect(result).not.toContain('Resolution:');
+    });
+
+    it('should handle quotes in titles and flair', async () => {
+      const postData = {
+        id: 'quotes',
+        name: 't3_quotes',
+        title: 'Title with "quotes" and more',
+        author: 'quoter',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/quotes',
+        score: 30,
+        num_comments: 1,
+        is_self: true,
+        link_flair_text: 'Flair with "quotes" too',
+      };
+
+      const result = await formatter.formatRedditContent(postData, false);
+
+      expect(result).toContain('title: "Title with \\"quotes\\" and more"');
+      expect(result).toContain('flair: "Flair with \\"quotes\\" too"');
+    });
+
+    it('should handle empty content gracefully', async () => {
+      const emptyData = {
+        id: 'empty',
+        name: 't3_empty',
+        title: 'Empty Post',
+        author: 'emptyuser',
+        subreddit: 'empty',
+        created_utc: 1234567890,
+        permalink: '/r/empty/comments/empty',
+        score: 0,
+        num_comments: 0,
+        is_self: true,
+        selftext: '',
+      };
+
+      const result = await formatter.formatRedditContent(emptyData, false);
+
+      expect(result).toContain('Empty Post');
+      expect(result).toContain('score: 0');
+    });
+  });
 });
