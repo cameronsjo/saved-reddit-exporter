@@ -1,17 +1,17 @@
 import { RedditApiClient } from '../src/api-client';
 import { RedditSavedSettings, RedditItem } from '../src/types';
+import { requestUrl } from 'obsidian';
 
 // Mock Obsidian modules
 jest.mock('obsidian');
+
+// Mock requestUrl implementation
+const mockRequestUrl = requestUrl as jest.MockedFunction<typeof requestUrl>;
 
 describe('RedditApiClient', () => {
   let mockSettings: RedditSavedSettings;
   let mockEnsureValidToken: jest.Mock;
   let client: RedditApiClient;
-
-  // Mock requestUrl
-  const mockRequestUrl = jest.fn();
-  (global as unknown as { requestUrl: jest.Mock }).requestUrl = mockRequestUrl;
 
   beforeEach(() => {
     mockSettings = {

@@ -1,30 +1,32 @@
 import { RedditAuth } from '../src/auth';
 import { RedditSavedSettings } from '../src/types';
-import { App } from 'obsidian';
+import { App, requestUrl } from 'obsidian';
 
 // Mock Obsidian modules
 jest.mock('obsidian');
 
-// Mock global functions
-const mockOpen = jest.fn();
-Object.defineProperty(window, 'open', {
-  writable: true,
-  value: mockOpen,
-});
-
-(global as unknown as { btoa: (str: string) => string }).btoa = jest.fn((str: string) =>
-  Buffer.from(str).toString('base64')
-);
+// Mock requestUrl implementation
+const mockRequestUrl = requestUrl as jest.MockedFunction<typeof requestUrl>;
 
 describe('RedditAuth', () => {
+  let mockOpen: jest.Mock;
+
+  beforeAll(() => {
+    // Mock global functions
+    mockOpen = jest.fn();
+    Object.defineProperty(window, 'open', {
+      writable: true,
+      value: mockOpen,
+    });
+
+    (global as unknown as { btoa: (str: string) => string }).btoa = jest.fn((str: string) =>
+      Buffer.from(str).toString('base64')
+    );
+  });
   let mockApp: App;
   let mockSettings: RedditSavedSettings;
   let mockSaveSettings: jest.Mock;
   let auth: RedditAuth;
-
-  // Mock requestUrl
-  const mockRequestUrl = jest.fn();
-  (global as unknown as { requestUrl: jest.Mock }).requestUrl = mockRequestUrl;
 
   beforeEach(() => {
     mockApp = new App();
