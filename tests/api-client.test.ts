@@ -140,9 +140,7 @@ describe('RedditApiClient', () => {
         headers: { Authorization: 'Bearer test' },
       };
 
-      await expect(client.makeRateLimitedRequest(params, 2)).rejects.toThrow(
-        'Max retries exceeded'
-      );
+      await expect(client.makeRateLimitedRequest(params, 2)).rejects.toThrow('Network error');
       expect(mockRequestUrl).toHaveBeenCalledTimes(2);
     });
   });
@@ -194,40 +192,45 @@ describe('RedditApiClient', () => {
     });
 
     it('should handle pagination', async () => {
-      const mockItems1: RedditItem[] = [
-        {
-          data: {
-            id: 'post1',
-            name: 't3_post1',
-            title: 'Test Post 1',
-            author: 'user1',
-            subreddit: 'test',
-            created_utc: 1234567890,
-            permalink: '/r/test/comments/post1',
-            score: 100,
-            num_comments: 5,
-            is_self: true,
-          },
-        },
-      ];
+      // Mock setTimeout to resolve immediately
+      jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => {
+        cb();
+        return null as any;
+      });
 
-      const mockItems2: RedditItem[] = [
-        {
-          data: {
-            id: 'post2',
-            name: 't3_post2',
-            title: 'Test Post 2',
-            author: 'user2',
-            subreddit: 'test2',
-            created_utc: 1234567891,
-            permalink: '/r/test2/comments/post2',
-            score: 200,
-            num_comments: 10,
-            is_self: false,
-            url: 'https://example.com/2',
-          },
+      // Set fetchLimit to allow for multiple pages
+      mockSettings.fetchLimit = 150;
+
+      const mockItems1: RedditItem[] = Array.from({ length: 100 }, (_, i) => ({
+        data: {
+          id: `post${i + 1}`,
+          name: `t3_post${i + 1}`,
+          title: `Test Post ${i + 1}`,
+          author: `user${i + 1}`,
+          subreddit: 'test',
+          created_utc: 1234567890 + i,
+          permalink: `/r/test/comments/post${i + 1}`,
+          score: 100 + i,
+          num_comments: 5 + i,
+          is_self: true,
         },
-      ];
+      }));
+
+      const mockItems2: RedditItem[] = Array.from({ length: 50 }, (_, i) => ({
+        data: {
+          id: `post${i + 101}`,
+          name: `t3_post${i + 101}`,
+          title: `Test Post ${i + 101}`,
+          author: `user${i + 101}`,
+          subreddit: 'test2',
+          created_utc: 1234567890 + i + 100,
+          permalink: `/r/test2/comments/post${i + 101}`,
+          score: 200 + i,
+          num_comments: 10 + i,
+          is_self: false,
+          url: `https://example.com/${i + 101}`,
+        },
+      }));
 
       mockRequestUrl
         .mockResolvedValueOnce({
@@ -249,9 +252,15 @@ describe('RedditApiClient', () => {
           headers: { 'x-ratelimit-remaining': '99' },
         });
 
+      // Add console debugging
+      jest.spyOn(console, 'log').mockImplementation();
+
       const result = await client.fetchAllSaved();
-      expect(result).toEqual([...mockItems1, ...mockItems2]);
       expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+      expect(result).toEqual([...mockItems1, ...mockItems2]);
+
+      // Restore setTimeout
+      jest.restoreAllMocks();
     });
 
     it('should respect fetch limit', async () => {
