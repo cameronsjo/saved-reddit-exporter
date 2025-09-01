@@ -16,10 +16,10 @@ export class RedditApiClient {
     this.ensureValidToken = ensureValidToken;
   }
 
-  private async handleRateLimit(response: any): Promise<number> {
+  private async handleRateLimit(response: { headers: Record<string, string> }): Promise<number> {
     const remaining = parseInt(response.headers['x-ratelimit-remaining'] || '0');
     const reset = parseInt(response.headers['x-ratelimit-reset'] || '0');
-    const used = response.headers['x-ratelimit-used'] || 'unknown';
+    // const _used = response.headers['x-ratelimit-used'] || 'unknown';
 
     // If we're getting close to the limit or hit it
     if (remaining <= 10) {
@@ -39,7 +39,13 @@ export class RedditApiClient {
     return remaining > 50 ? 100 : 500;
   }
 
-  async makeRateLimitedRequest(params: RequestUrlParam, retries = 3): Promise<any> {
+  async makeRateLimitedRequest(
+    params: RequestUrlParam,
+    retries = 3
+  ): Promise<{
+    json: { data: { children: RedditItem[]; after?: string } };
+    headers: Record<string, string>;
+  }> {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const response = await requestUrl(params);

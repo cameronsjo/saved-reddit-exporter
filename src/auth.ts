@@ -10,7 +10,7 @@ export class RedditAuth {
   private settings: RedditSavedSettings;
   private saveSettings: () => Promise<void>;
   private authorizationInProgress = false;
-  private oauthServer: any | null = null;
+  private oauthServer: unknown = null;
 
   constructor(app: App, settings: RedditSavedSettings, saveSettings: () => Promise<void>) {
     this.app = app;
@@ -45,7 +45,7 @@ export class RedditAuth {
 
     // Store state for verification
     const currentData = { ...this.settings };
-    (currentData as any).oauthState = state;
+    (currentData as RedditSavedSettings & { oauthState: string }).oauthState = state;
     await this.saveSettings();
 
     try {
@@ -68,7 +68,7 @@ export class RedditAuth {
     return new Promise((resolve, reject) => {
       try {
         // Try to access Node.js http module through require (Electron environment)
-        const http = (window as any).require?.('http');
+        const http = (window as { require?: (module: string) => unknown }).require?.('http');
         if (!http) {
           throw new Error('Node.js http module not available in this environment');
         }
@@ -78,18 +78,41 @@ export class RedditAuth {
           this.oauthServer.close();
         }
 
-        this.oauthServer = http.createServer((req: any, res: any) => {
-          try {
-            const url = new URL(req.url!, `http://localhost:${this.settings.oauthRedirectPort}`);
-            const code = url.searchParams.get('code');
-            const state = url.searchParams.get('state');
-            const error = url.searchParams.get('error');
+        this.oauthServer = (
+          http as {
+            createServer: (
+              callback: (
+                req: { url?: string },
+                res: {
+                  writeHead: (code: number, headers: Record<string, string>) => void;
+                  end: (html: string) => void;
+                }
+              ) => void
+            ) => {
+              close: () => void;
+              on: (event: string, callback: (err: { code: string }) => void) => void;
+              listen: (port: number, hostname: string, callback: () => void) => void;
+            };
+          }
+        ).createServer(
+          (
+            req: { url?: string },
+            res: {
+              writeHead: (code: number, headers: Record<string, string>) => void;
+              end: (html: string) => void;
+            }
+          ) => {
+            try {
+              const url = new URL(req.url!, `http://localhost:${this.settings.oauthRedirectPort}`);
+              const code = url.searchParams.get('code');
+              const state = url.searchParams.get('state');
+              const error = url.searchParams.get('error');
 
-            // Send response to browser
-            res.writeHead(200, { 'Content-Type': 'text/html' });
+              // Send response to browser
+              res.writeHead(200, { 'Content-Type': 'text/html' });
 
-            if (error) {
-              res.end(`
+              if (error) {
+                res.end(`
                                 <html>
                                     <body>
                                         <h1>Authorization Failed</h1>
@@ -98,13 +121,13 @@ export class RedditAuth {
                                     </body>
                                 </html>
                             `);
-              this.authorizationInProgress = false;
-              this.stopOAuthServer();
-              return;
-            }
+                this.authorizationInProgress = false;
+                this.stopOAuthServer();
+                return;
+              }
 
-            if (!code || !state) {
-              res.end(`
+              if (!code || !state) {
+                res.end(`
                                 <html>
                                     <body>
                                         <h1>Authorization Error</h1>
@@ -113,11 +136,11 @@ export class RedditAuth {
                                     </body>
                                 </html>
                             `);
-              return;
-            }
+                return;
+              }
 
-            if (state !== expectedState) {
-              res.end(`
+              if (state !== expectedState) {
+                res.end(`
                                 <html>
                                     <body>
                                         <h1>Authorization Error</h1>
@@ -126,13 +149,13 @@ export class RedditAuth {
                                     </body>
                                 </html>
                             `);
-              this.authorizationInProgress = false;
-              this.stopOAuthServer();
-              return;
-            }
+                this.authorizationInProgress = false;
+                this.stopOAuthServer();
+                return;
+              }
 
-            // Success response
-            res.end(`
+              // Success response
+              res.end(`
                             <html>
                                 <body>
                                     <h1>Authorization Successful!</h1>
@@ -143,12 +166,12 @@ export class RedditAuth {
                             </html>
                         `);
 
-            // Process the authorization code
-            this.handleOAuthCallback(code, state, expectedState);
-          } catch (err) {
-            console.error('OAuth server error:', err);
-            res.writeHead(500, { 'Content-Type': 'text/html' });
-            res.end(`
+              // Process the authorization code
+              this.handleOAuthCallback(code, state, expectedState);
+            } catch (err) {
+              console.error('OAuth server error:', err);
+              res.writeHead(500, { 'Content-Type': 'text/html' });
+              res.end(`
                             <html>
                                 <body>
                                     <h1>Server Error</h1>
@@ -157,10 +180,15 @@ export class RedditAuth {
                                 </body>
                             </html>
                         `);
+            }
           }
-        });
+        );
 
-        this.oauthServer.on('error', (err: any) => {
+        (
+          this.oauthServer as {
+            on: (event: string, callback: (err: { code: string }) => void) => void;
+          }
+        ).on('error', (err: { code: string }) => {
           if (err.code === 'EADDRINUSE') {
             reject(
               new Error(
@@ -172,15 +200,24 @@ export class RedditAuth {
           }
         });
 
-        this.oauthServer.listen(this.settings.oauthRedirectPort, 'localhost', () => {
+        (
+          this.oauthServer as {
+            listen: (port: number, hostname: string, callback: () => void) => void;
+          }
+        ).listen(this.settings.oauthRedirectPort, 'localhost', () => {
           resolve();
         });
 
         // Auto-close server after 5 minutes to prevent hanging
         setTimeout(
           () => {
-            if (this.oauthServer) {
-              this.stopOAuthServer();
+            if (
+              this.oauthServer &&
+              typeof this.oauthServer === 'object' &&
+              'close' in this.oauthServer
+            ) {
+              (this.oauthServer as { close: () => void }).close();
+              this.oauthServer = null;
               if (this.authorizationInProgress) {
                 new Notice('OAuth server timed out. Please try authenticating again.');
                 this.authorizationInProgress = false;
@@ -226,8 +263,8 @@ export class RedditAuth {
   }
 
   private stopOAuthServer(): void {
-    if (this.oauthServer) {
-      this.oauthServer.close();
+    if (this.oauthServer && typeof this.oauthServer === 'object' && 'close' in this.oauthServer) {
+      (this.oauthServer as { close: () => void }).close();
       this.oauthServer = null;
     }
   }
@@ -256,7 +293,7 @@ export class RedditAuth {
   }
 
   private async handleManualAuthCode(code: string, expectedState: string): Promise<void> {
-    const currentState = (this.settings as any).oauthState;
+    const currentState = (this.settings as RedditSavedSettings & { oauthState: string }).oauthState;
 
     if (expectedState !== currentState) {
       throw new Error('Invalid authorization state');

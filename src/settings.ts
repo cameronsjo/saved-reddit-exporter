@@ -10,7 +10,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
   constructor(
     app: App,
-    plugin: any,
+    plugin: unknown,
     settings: RedditSavedSettings,
     saveSettings: () => Promise<void>,
     initiateOAuth: () => Promise<void>
@@ -102,7 +102,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     rateLimitInfo.style.borderRadius = '4px';
     rateLimitInfo.style.marginBottom = '15px';
 
-    const limitTitle = rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API Limits:' });
+    rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API Limits:' });
     rateLimitInfo.createEl('br');
     rateLimitInfo.createSpan({ text: '• Maximum 1,000 saved items can be fetched' });
     rateLimitInfo.createEl('br');

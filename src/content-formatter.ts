@@ -174,7 +174,7 @@ export class ContentFormatter {
         }
         break;
 
-      case 'youtube':
+      case 'youtube': {
         content += `🎬 **YouTube Video**\n\n`;
         content += `[▶️ Watch on YouTube](${url})\n\n`;
         // Try to extract video ID for embedding
@@ -183,6 +183,7 @@ export class ContentFormatter {
           content += `<iframe width="560" height="315" src="https://www.youtube.com/embed/${youtubeId}" frameborder="0" allowfullscreen></iframe>\n\n`;
         }
         break;
+      }
 
       case 'gif-platform':
         content += `🎞️ **GIF/Animation**\n\n`;

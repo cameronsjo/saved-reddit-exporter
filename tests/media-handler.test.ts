@@ -118,7 +118,7 @@ describe('MediaHandler', () => {
 
   describe('isGalleryUrl', () => {
     it('should identify Imgur galleries', () => {
-      const isGalleryUrl = (handler as any).isGalleryUrl;
+      const isGalleryUrl = (handler as { isGalleryUrl: (url: string) => boolean }).isGalleryUrl;
 
       expect(isGalleryUrl('https://imgur.com/gallery/example')).toBe(true);
       expect(isGalleryUrl('https://imgur.com/a/album123')).toBe(true);
@@ -126,7 +126,7 @@ describe('MediaHandler', () => {
     });
 
     it('should identify Reddit galleries', () => {
-      const isGalleryUrl = (handler as any).isGalleryUrl;
+      const isGalleryUrl = (handler as { isGalleryUrl: (url: string) => boolean }).isGalleryUrl;
 
       expect(isGalleryUrl('https://reddit.com/gallery/abc123')).toBe(true);
       expect(isGalleryUrl('https://reddit.com/r/test')).toBe(false);
@@ -241,7 +241,8 @@ describe('MediaHandler', () => {
 
   describe('sanitizeFileName', () => {
     it('should sanitize filenames', () => {
-      const sanitizeFileName = (handler as any).sanitizeFileName;
+      const sanitizeFileName = (handler as { sanitizeFileName: (filename: string) => string })
+        .sanitizeFileName;
 
       expect(sanitizeFileName('Test: File? Name*')).toBe('Test- File- Name-');
       expect(sanitizeFileName('Normal filename')).toBe('Normal filename');
@@ -250,7 +251,8 @@ describe('MediaHandler', () => {
     });
 
     it('should handle Windows reserved names', () => {
-      const sanitizeFileName = (handler as any).sanitizeFileName;
+      const sanitizeFileName = (handler as { sanitizeFileName: (filename: string) => string })
+        .sanitizeFileName;
 
       expect(sanitizeFileName('CON')).toBe('CON_file');
       expect(sanitizeFileName('PRN')).toBe('PRN_file');

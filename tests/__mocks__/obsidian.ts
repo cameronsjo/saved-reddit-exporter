@@ -9,34 +9,34 @@ export class Vault {
     return [];
   }
 
-  getAbstractFileByPath(path: string) {
+  getAbstractFileByPath(_path: string) {
     return null;
   }
 
-  createFolder(path: string) {
+  createFolder(_path: string) {
     return Promise.resolve();
   }
 
-  create(path: string, content: string) {
+  create(_path: string, _content: string) {
     return Promise.resolve();
   }
 
-  createBinary(path: string, data: ArrayBuffer) {
+  createBinary(_path: string, _data: ArrayBuffer) {
     return Promise.resolve();
   }
 }
 
 export class MetadataCache {
-  getFileCache(file: any) {
+  getFileCache(_file: unknown) {
     return null;
   }
 }
 
 export class Plugin {
   app: App;
-  settings: any;
+  settings: unknown;
 
-  constructor(app: App, manifest: any) {
+  constructor(app: App, _manifest: unknown) {
     this.app = app;
   }
 
@@ -44,41 +44,41 @@ export class Plugin {
     return Promise.resolve({});
   }
 
-  saveData(data: any) {
+  saveData(_data: unknown) {
     return Promise.resolve();
   }
 
-  addRibbonIcon(icon: string, title: string, callback: () => void) {
+  addRibbonIcon(_icon: string, _title: string, _callback: () => void) {
     return {};
   }
 
-  addCommand(command: any) {
+  addCommand(_command: unknown) {
     return {};
   }
 
-  addSettingTab(tab: any) {
+  addSettingTab(_tab: unknown) {
     return {};
   }
 }
 
 export class PluginSettingTab {
-  constructor(app: App, plugin: Plugin) {}
+  constructor(_app: App, _plugin: Plugin) {}
 
   display() {}
 }
 
 export class Setting {
-  constructor(containerEl: HTMLElement) {}
+  constructor(_containerEl: HTMLElement) {}
 
-  setName(name: string) {
+  setName(_name: string) {
     return this;
   }
 
-  setDesc(desc: string) {
+  setDesc(_desc: string) {
     return this;
   }
 
-  addText(callback: (text: any) => void) {
+  addText(callback: (text: unknown) => void) {
     const mockText = {
       setPlaceholder: () => mockText,
       setValue: () => mockText,
@@ -88,7 +88,7 @@ export class Setting {
     return this;
   }
 
-  addToggle(callback: (toggle: any) => void) {
+  addToggle(callback: (toggle: unknown) => void) {
     const mockToggle = {
       setValue: () => mockToggle,
       onChange: () => mockToggle,
@@ -97,7 +97,7 @@ export class Setting {
     return this;
   }
 
-  addButton(callback: (button: any) => void) {
+  addButton(callback: (button: unknown) => void) {
     const mockButton = {
       setButtonText: () => mockButton,
       setCta: () => mockButton,
@@ -131,18 +131,18 @@ export class Modal {
 export class TextComponent {
   inputEl = document.createElement('input');
 
-  constructor(containerEl: HTMLElement) {}
+  constructor(_containerEl: HTMLElement) {}
 
   getValue() {
     return '';
   }
 
-  setValue(value: string) {
+  setValue(_value: string) {
     return this;
   }
 }
 
-export function requestUrl(params: any) {
+export function requestUrl(_params: unknown) {
   return Promise.resolve({
     status: 200,
     json: {},

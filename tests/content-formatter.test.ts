@@ -132,7 +132,8 @@ describe('ContentFormatter', () => {
   describe('extractFilename', () => {
     it('should extract filename from path', () => {
       const formatter = new ContentFormatter(mockSettings, mockMediaHandler);
-      const extractFilename = (formatter as any).extractFilename;
+      const extractFilename = (formatter as { extractFilename: (path: string) => string })
+        .extractFilename;
 
       expect(extractFilename('path/to/file.jpg')).toBe('file.jpg');
       expect(extractFilename('file.png')).toBe('file.png');
@@ -143,7 +144,9 @@ describe('ContentFormatter', () => {
   describe('convertRedditMarkdown', () => {
     it('should convert Reddit markdown syntax', () => {
       const formatter = new ContentFormatter(mockSettings, mockMediaHandler);
-      const convertRedditMarkdown = (formatter as any).convertRedditMarkdown;
+      const convertRedditMarkdown = (
+        formatter as { convertRedditMarkdown: (input: string) => string }
+      ).convertRedditMarkdown;
 
       const input = 'Check out r/test and u/testuser. &gt;!spoiler text!&lt;';
       const result = convertRedditMarkdown(input);
@@ -155,7 +158,9 @@ describe('ContentFormatter', () => {
 
     it('should handle HTML entities', () => {
       const formatter = new ContentFormatter(mockSettings, mockMediaHandler);
-      const convertRedditMarkdown = (formatter as any).convertRedditMarkdown;
+      const convertRedditMarkdown = (
+        formatter as { convertRedditMarkdown: (input: string) => string }
+      ).convertRedditMarkdown;
 
       const input = '&amp; &lt; &gt; &quot; &#x27; &#x2F;';
       const result = convertRedditMarkdown(input);
@@ -165,7 +170,9 @@ describe('ContentFormatter', () => {
 
     it('should convert quotes', () => {
       const formatter = new ContentFormatter(mockSettings, mockMediaHandler);
-      const convertRedditMarkdown = (formatter as any).convertRedditMarkdown;
+      const convertRedditMarkdown = (
+        formatter as { convertRedditMarkdown: (input: string) => string }
+      ).convertRedditMarkdown;
 
       const input = '&gt;This is a quote\n&gt;Multi-line quote';
       const result = convertRedditMarkdown(input);

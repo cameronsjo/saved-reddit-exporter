@@ -1,4 +1,4 @@
-import { App, Notice, Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
 import { RedditSavedSettings, ImportResult, RedditItem } from './types';
 import { DEFAULT_SETTINGS } from './constants';
 import { RedditAuth } from './auth';
@@ -105,7 +105,7 @@ export default class RedditSavedPlugin extends Plugin {
 
       if (this.settings.autoUnsave) {
         // Only unsave newly imported items
-        const itemsToUnsave = savedItems.filter(item => {
+        const itemsToUnsave = savedItems.filter(_item => {
           return !this.settings.skipExisting || result.imported > 0;
         });
         if (itemsToUnsave.length > 0) {
@@ -219,9 +219,10 @@ export default class RedditSavedPlugin extends Plugin {
     // Remove/replace characters that are invalid on Windows, macOS, and Linux
     sanitized = sanitized
       // Windows forbidden characters: < > : " | ? * \ /
-      .replace(/[<>:"\/\\|?*]/g, '-')
+      .replace(/[<>:"/\\|?*]/g, '-')
       // Control characters (0-31) and DEL (127)
-      .replace(/[\x00-\x1f\x7f]/g, '')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001F\u007F]/g, '')
       // Zero-width characters and other problematic Unicode
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
       // Multiple spaces to single space

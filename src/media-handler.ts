@@ -18,7 +18,7 @@ export class MediaHandler {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
     const videoExtensions = ['.mp4', '.webm', '.mov', '.avi'];
 
-    let mediaInfo: MediaInfo = {
+    const mediaInfo: MediaInfo = {
       type: 'link',
       mediaType: null,
       isMedia: false,
@@ -96,7 +96,7 @@ export class MediaHandler {
       case 'video':
         return this.settings.downloadVideos;
 
-      default:
+      default: {
         // For other media types, check file extension
         const urlLower = url.toLowerCase();
         if (this.settings.downloadImages && /\.(jpg|jpeg|png|webp|bmp|svg)(\?|$)/i.test(urlLower)) {
@@ -109,6 +109,7 @@ export class MediaHandler {
           return true;
         }
         return false;
+      }
     }
   }
 
@@ -240,9 +241,10 @@ export class MediaHandler {
     // Remove/replace characters that are invalid on Windows, macOS, and Linux
     sanitized = sanitized
       // Windows forbidden characters: < > : " | ? * \ /
-      .replace(/[<>:"\/\\|?*]/g, '-')
+      .replace(/[<>:"/\\|?*]/g, '-')
       // Control characters (0-31) and DEL (127)
-      .replace(/[\x00-\x1f\x7f]/g, '')
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001F\u007F]/g, '')
       // Zero-width characters and other problematic Unicode
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
       // Multiple spaces to single space
