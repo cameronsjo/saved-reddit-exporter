@@ -74,8 +74,12 @@ export class RedditAuth {
         }
 
         // Close any existing server
-        if (this.oauthServer) {
-          this.oauthServer.close();
+        if (
+          this.oauthServer &&
+          typeof this.oauthServer === 'object' &&
+          'close' in this.oauthServer
+        ) {
+          (this.oauthServer as { close: () => void }).close();
         }
 
         this.oauthServer = (

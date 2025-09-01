@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { RedditSavedSettings } from './types';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
@@ -10,7 +10,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
   constructor(
     app: App,
-    plugin: unknown,
+    plugin: Plugin,
     settings: RedditSavedSettings,
     saveSettings: () => Promise<void>,
     initiateOAuth: () => Promise<void>

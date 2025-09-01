@@ -116,7 +116,7 @@ export class RedditApiClient {
 
       if (data.children && data.children.length > 0) {
         items.push(...data.children);
-        after = data.after;
+        after = data.after || '';
         hasMore = !!after && items.length < REDDIT_MAX_ITEMS; // Reddit's hard limit
 
         // Update progress
