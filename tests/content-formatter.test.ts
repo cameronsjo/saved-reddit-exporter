@@ -1,6 +1,6 @@
 import { ContentFormatter } from '../src/content-formatter';
 import { MediaHandler } from '../src/media-handler';
-import { RedditSavedSettings, RedditItemData } from '../src/types';
+import { RedditSavedSettings, RedditItemData, RedditComment } from '../src/types';
 import { App } from 'obsidian';
 
 // Mock MediaHandler
@@ -30,6 +30,9 @@ describe('ContentFormatter', () => {
       downloadGifs: true,
       downloadVideos: true,
       mediaFolder: 'Attachments',
+      organizeBySubreddit: false,
+      exportPostComments: false,
+      commentUpvoteThreshold: 0,
     };
 
     mockMediaHandler = new MediaHandler({} as App, mockSettings) as jest.Mocked<MediaHandler>;
@@ -404,6 +407,153 @@ describe('ContentFormatter', () => {
 
       expect(result).toContain('Empty Post');
       expect(result).toContain('score: 0');
+    });
+  });
+
+  describe('formatRedditContent with comments', () => {
+    it('should include comments section when comments are provided', async () => {
+      const postData: RedditItemData = {
+        id: 'post123',
+        name: 't3_post123',
+        title: 'Post With Comments',
+        author: 'postauthor',
+        subreddit: 'test',
+        permalink: '/r/test/comments/post123/post_with_comments/',
+        created_utc: 1640995200,
+        score: 100,
+        num_comments: 25,
+        is_self: true,
+        selftext: 'Post content here',
+      };
+
+      const comments: RedditComment[] = [
+        {
+          id: 'comment1',
+          author: 'commenter1',
+          body: 'This is a great post!',
+          score: 50,
+          created_utc: 1640995300,
+          is_submitter: false,
+          depth: 0,
+        },
+        {
+          id: 'comment2',
+          author: 'postauthor',
+          body: 'Thanks for the feedback!',
+          score: 25,
+          created_utc: 1640995400,
+          is_submitter: true,
+          depth: 0,
+        },
+      ];
+
+      const result = await formatter.formatRedditContent(postData, false, comments);
+
+      expect(result).toContain('## 💬 Top Comments');
+      expect(result).toContain('**u/commenter1**');
+      expect(result).toContain('This is a great post!');
+      expect(result).toContain('**u/postauthor** 👑 **OP**');
+      expect(result).toContain('Thanks for the feedback!');
+      expect(result).toContain('exported_comments: 2');
+    });
+
+    it('should handle nested comment replies', async () => {
+      const postData: RedditItemData = {
+        id: 'post456',
+        name: 't3_post456',
+        title: 'Post With Nested Comments',
+        author: 'op',
+        subreddit: 'test',
+        permalink: '/r/test/comments/post456/',
+        created_utc: 1640995200,
+        score: 50,
+        num_comments: 10,
+        is_self: true,
+        selftext: 'Post body',
+      };
+
+      const comments: RedditComment[] = [
+        {
+          id: 'parent1',
+          author: 'user1',
+          body: 'Parent comment',
+          score: 30,
+          created_utc: 1640995300,
+          is_submitter: false,
+          depth: 0,
+          replies: [
+            {
+              id: 'child1',
+              author: 'user2',
+              body: 'Reply to parent',
+              score: 15,
+              created_utc: 1640995400,
+              is_submitter: false,
+              depth: 1,
+            },
+          ],
+        },
+      ];
+
+      const result = await formatter.formatRedditContent(postData, false, comments);
+
+      expect(result).toContain('Parent comment');
+      expect(result).toContain('Reply to parent');
+      expect(result).toContain('exported_comments: 2');
+    });
+
+    it('should not include comments section for saved comments', async () => {
+      const commentData: RedditItemData = {
+        id: 'savedcomment',
+        name: 't1_savedcomment',
+        author: 'commenter',
+        subreddit: 'test',
+        permalink: '/r/test/comments/post123/title/savedcomment/',
+        created_utc: 1640995200,
+        score: 50,
+        body: 'This is a saved comment',
+        link_title: 'Original Post',
+        is_submitter: false,
+      };
+
+      const comments: RedditComment[] = [
+        {
+          id: 'comment1',
+          author: 'other',
+          body: 'Other comment',
+          score: 10,
+          created_utc: 1640995300,
+          is_submitter: false,
+          depth: 0,
+        },
+      ];
+
+      // Even if comments are passed, they should not be included for saved comments
+      const result = await formatter.formatRedditContent(commentData, true, comments);
+
+      expect(result).not.toContain('## 💬 Top Comments');
+      expect(result).toContain('type: reddit-comment');
+    });
+
+    it('should handle empty comments array', async () => {
+      const postData: RedditItemData = {
+        id: 'nocomments',
+        name: 't3_nocomments',
+        title: 'Post Without Comments',
+        author: 'author',
+        subreddit: 'test',
+        permalink: '/r/test/comments/nocomments/',
+        created_utc: 1640995200,
+        score: 10,
+        num_comments: 0,
+        is_self: true,
+        selftext: 'Empty post',
+      };
+
+      const result = await formatter.formatRedditContent(postData, false, []);
+
+      expect(result).not.toContain('## 💬 Top Comments');
+      expect(result).not.toContain('exported_comments');
     });
   });
 });

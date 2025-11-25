@@ -1,5 +1,5 @@
 import { Notice, Plugin } from 'obsidian';
-import { RedditSavedSettings, ImportResult, RedditItem } from './types';
+import { RedditSavedSettings, ImportResult, RedditItem, RedditComment } from './types';
 import {
   DEFAULT_SETTINGS,
   REDDIT_ITEM_TYPE_COMMENT,
@@ -13,7 +13,7 @@ import { RedditApiClient } from './api-client';
 import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
-import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
+import { sanitizeFileName, isPathSafe, sanitizeSubredditName } from './utils/file-sanitizer';
 
 export default class RedditSavedPlugin extends Plugin {
   settings: RedditSavedSettings;
@@ -198,15 +198,41 @@ export default class RedditSavedPlugin extends Plugin {
 
       const fileName = sanitizeFileName(rawFileName);
 
+      // Determine the save folder based on subreddit organization setting
+      let saveFolder = this.settings.saveLocation;
+      if (this.settings.organizeBySubreddit && data.subreddit) {
+        const subredditFolder = sanitizeSubredditName(data.subreddit);
+        saveFolder = `${this.settings.saveLocation}/${subredditFolder}`;
+
+        // Create subreddit folder if it doesn't exist
+        const subredditFolderExists = this.app.vault.getAbstractFileByPath(saveFolder);
+        if (!subredditFolderExists) {
+          await this.app.vault.createFolder(saveFolder);
+        }
+      }
+
       // Generate unique filename if it already exists
-      let filePath = `${this.settings.saveLocation}/${fileName}.md`;
+      let filePath = `${saveFolder}/${fileName}.md`;
       let counter = 1;
       while (this.app.vault.getAbstractFileByPath(filePath)) {
-        filePath = `${this.settings.saveLocation}/${fileName} ${counter}.md`;
+        filePath = `${saveFolder}/${fileName} ${counter}.md`;
         counter++;
       }
 
-      const content = await this.contentFormatter.formatRedditContent(data, isComment);
+      // Fetch comments if enabled and this is a post (not a saved comment)
+      let comments: RedditComment[] = [];
+      if (this.settings.exportPostComments && !isComment) {
+        try {
+          comments = await this.apiClient.fetchPostComments(
+            data.permalink,
+            this.settings.commentUpvoteThreshold
+          );
+        } catch (error) {
+          console.error(`Error fetching comments for ${data.id}:`, error);
+        }
+      }
+
+      const content = await this.contentFormatter.formatRedditContent(data, isComment, comments);
       await this.app.vault.create(filePath, content);
 
       // Add to imported IDs

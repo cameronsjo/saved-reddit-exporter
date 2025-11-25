@@ -127,3 +127,29 @@ export function normalizePath(path: string): string {
     .replace(/%2e%2e/gi, '')
     .replace(/%252e%252e/gi, '');
 }
+
+/**
+ * Sanitizes a subreddit name for use as a folder name
+ * @param subreddit - The subreddit name (without r/ prefix)
+ * @returns A sanitized folder name like "r-subredditname"
+ */
+export function sanitizeSubredditName(subreddit: string): string {
+  if (!subreddit || subreddit.trim() === '') {
+    return 'r-unknown';
+  }
+
+  // Remove any r/ prefix if present
+  let name = subreddit.replace(/^r\//i, '');
+
+  // Sanitize for filesystem safety
+  name = name
+    // Keep only alphanumeric, underscore (valid subreddit chars)
+    .replace(/[^a-zA-Z0-9_]/g, '')
+    .toLowerCase();
+
+  if (name.length === 0) {
+    return 'r-unknown';
+  }
+
+  return `r-${name}`;
+}

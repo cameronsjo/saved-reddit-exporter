@@ -1,5 +1,5 @@
 import { Notice, requestUrl, RequestUrlParam } from 'obsidian';
-import { RedditSavedSettings, RedditItem } from './types';
+import { RedditSavedSettings, RedditItem, RedditComment } from './types';
 import {
   REDDIT_USER_AGENT,
   REDDIT_MAX_ITEMS,
@@ -189,5 +189,94 @@ export class RedditApiClient {
     };
 
     await this.makeRateLimitedRequest(params);
+  }
+
+  async fetchPostComments(
+    permalink: string,
+    upvoteThreshold: number = 0
+  ): Promise<RedditComment[]> {
+    await this.ensureValidToken();
+
+    // Reddit API endpoint for comments: /r/subreddit/comments/article_id
+    // The permalink already contains the path, we just need to use it
+    const url = `${REDDIT_OAUTH_BASE_URL}${permalink}.json?limit=100&depth=5&sort=top`;
+
+    const params: RequestUrlParam = {
+      url,
+      method: 'GET',
+      headers: {
+        [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+        [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
+      },
+    };
+
+    try {
+      const response = await requestUrl(params);
+
+      // Reddit returns an array: [post, comments]
+      // The second element contains the comments
+      if (!Array.isArray(response.json) || response.json.length < 2) {
+        return [];
+      }
+
+      const commentsData = response.json[1]?.data?.children || [];
+      return this.parseComments(commentsData, upvoteThreshold, 0);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      return [];
+    }
+  }
+
+  private parseComments(
+    children: Array<{ kind: string; data: Record<string, unknown> }>,
+    upvoteThreshold: number,
+    depth: number,
+    maxDepth: number = 5
+  ): RedditComment[] {
+    const comments: RedditComment[] = [];
+
+    for (const child of children) {
+      // Skip "more" placeholders (kind: 'more')
+      if (child.kind !== 't1') {
+        continue;
+      }
+
+      const data = child.data;
+      const score = (data.score as number) || 0;
+
+      // Filter by upvote threshold
+      if (score < upvoteThreshold) {
+        continue;
+      }
+
+      const comment: RedditComment = {
+        id: data.id as string,
+        author: (data.author as string) || '[deleted]',
+        body: (data.body as string) || '',
+        score,
+        created_utc: (data.created_utc as number) || 0,
+        is_submitter: (data.is_submitter as boolean) || false,
+        depth,
+      };
+
+      // Parse nested replies if within depth limit
+      if (depth < maxDepth && data.replies && typeof data.replies === 'object') {
+        const repliesData = data.replies as {
+          data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> };
+        };
+        if (repliesData.data?.children) {
+          comment.replies = this.parseComments(
+            repliesData.data.children,
+            upvoteThreshold,
+            depth + 1,
+            maxDepth
+          );
+        }
+      }
+
+      comments.push(comment);
+    }
+
+    return comments;
   }
 }
