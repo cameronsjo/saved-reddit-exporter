@@ -201,6 +201,99 @@ export class RedditSavedSettingTab extends PluginSettingTab {
             })
         );
 
+      // Templater Integration Settings
+      new Setting(containerEl).setName('Templater integration').setHeading();
+
+      new Setting(containerEl)
+        .setName('Use Templater')
+        .setDesc(
+          'Enable Templater template processing for imported posts (requires Templater plugin)'
+        )
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.useTemplater).onChange(async value => {
+            this.settings.useTemplater = value;
+            await this.saveSettings();
+            this.display(); // Refresh to show/hide template path settings
+          })
+        );
+
+      if (this.settings.useTemplater) {
+        new Setting(containerEl)
+          .setName('Post template path')
+          .setDesc('Path to template file for Reddit posts (e.g., "Templates/Reddit Post.md")')
+          .addText(text =>
+            text
+              .setPlaceholder('Templates/Reddit Post.md')
+              .setValue(this.settings.postTemplatePath)
+              .onChange(async value => {
+                this.settings.postTemplatePath = value;
+                await this.saveSettings();
+              })
+          );
+
+        new Setting(containerEl)
+          .setName('Comment template path')
+          .setDesc(
+            'Path to template file for Reddit comments (e.g., "Templates/Reddit Comment.md")'
+          )
+          .addText(text =>
+            text
+              .setPlaceholder('Templates/Reddit Comment.md')
+              .setValue(this.settings.commentTemplatePath)
+              .onChange(async value => {
+                this.settings.commentTemplatePath = value;
+                await this.saveSettings();
+              })
+          );
+
+        // Template variables reference
+        const templaterInfo = containerEl.createDiv();
+        templaterInfo.setCssProps({
+          backgroundColor: 'var(--background-secondary)',
+          padding: '10px',
+          borderRadius: '4px',
+          marginBottom: '15px',
+          fontSize: '0.85em',
+        });
+
+        templaterInfo.createEl('strong', { text: '📝 Available template variables:' });
+        templaterInfo.createEl('br');
+        templaterInfo.createEl('br');
+
+        const varList = templaterInfo.createEl('div');
+        varList.setCssProps({
+          fontFamily: 'monospace',
+          fontSize: '0.9em',
+        });
+
+        const variables = [
+          '{{reddit.title}} - Post title',
+          '{{reddit.author}} - Author username',
+          '{{reddit.subreddit}} - Subreddit name',
+          '{{reddit.score}} - Upvote score',
+          '{{reddit.created}} - ISO date string',
+          '{{reddit.createdDate}} - Localized date',
+          '{{reddit.permalink}} - Full Reddit URL',
+          '{{reddit.selftext}} - Post body text',
+          '{{reddit.body}} - Comment body text',
+          '{{reddit.url}} - External link URL',
+          '{{reddit.flair}} - Post flair',
+          '{{reddit.tags}} - Auto-generated tags',
+          '{{reddit.numComments}} - Comment count',
+          '{{reddit.type}} - "reddit-post" or "reddit-comment"',
+        ];
+
+        for (const v of variables) {
+          varList.createSpan({ text: v });
+          varList.createEl('br');
+        }
+
+        templaterInfo.createEl('br');
+        templaterInfo.createSpan({
+          text: 'Templater syntax (<% %>) can also be used alongside Reddit variables.',
+        });
+      }
+
       // Media Download Settings
       new Setting(containerEl).setName('Media download options').setHeading();
 

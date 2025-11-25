@@ -16,6 +16,30 @@ export interface RedditSavedSettings {
   downloadGifs: boolean; // Download GIF files
   downloadVideos: boolean; // Download video files
   mediaFolder: string; // Folder for downloaded media
+  // Templater integration
+  useTemplater: boolean; // Enable Templater template processing
+  postTemplatePath: string; // Path to template for posts
+  commentTemplatePath: string; // Path to template for comments
+}
+
+// Context object passed to Templater templates
+export interface TemplaterContext {
+  // Core data
+  item: RedditItemData;
+  isComment: boolean;
+  // Formatted dates
+  created: string; // ISO string
+  createdDate: string; // Localized date string
+  // Computed values
+  type: 'reddit-post' | 'reddit-comment';
+  permalink: string; // Full URL
+  // Media info (if applicable)
+  mediaInfo?: MediaInfo;
+  localMediaPath?: string | null;
+  // Helper values
+  subredditUrl: string;
+  authorUrl: string;
+  tags: string[];
 }
 
 export interface MediaInfo {

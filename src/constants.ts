@@ -98,6 +98,11 @@ export const FRONTMATTER_TYPE_COMMENT = 'reddit-comment';
 // Backoff Configuration
 export const BACKOFF_MAX_DELAY_MS = 30000; // 30 seconds max backoff
 
+// Templater Configuration
+export const TEMPLATER_PLUGIN_ID = 'templater-obsidian';
+export const DEFAULT_POST_TEMPLATE_PATH = '';
+export const DEFAULT_COMMENT_TEMPLATE_PATH = '';
+
 export const DEFAULT_SETTINGS: RedditSavedSettings = {
   clientId: '',
   clientSecret: '',
@@ -116,4 +121,8 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   downloadGifs: false,
   downloadVideos: false,
   mediaFolder: DEFAULT_MEDIA_FOLDER,
+  // Templater defaults
+  useTemplater: false,
+  postTemplatePath: DEFAULT_POST_TEMPLATE_PATH,
+  commentTemplatePath: DEFAULT_COMMENT_TEMPLATE_PATH,
 };

@@ -30,6 +30,9 @@ describe('ContentFormatter', () => {
       downloadGifs: true,
       downloadVideos: true,
       mediaFolder: 'Attachments',
+      useTemplater: false,
+      postTemplatePath: '',
+      commentTemplatePath: '',
     };
 
     mockMediaHandler = new MediaHandler({} as App, mockSettings) as jest.Mocked<MediaHandler>;

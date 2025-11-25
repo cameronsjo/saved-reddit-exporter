@@ -1,4 +1,4 @@
-import { Notice, Plugin } from 'obsidian';
+import { Notice, Plugin, TFile } from 'obsidian';
 import { RedditSavedSettings, ImportResult, RedditItem } from './types';
 import {
   DEFAULT_SETTINGS,
@@ -14,6 +14,7 @@ import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
 import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
+import { TemplaterHandler } from './templater-handler';
 
 export default class RedditSavedPlugin extends Plugin {
   settings: RedditSavedSettings;
@@ -21,6 +22,7 @@ export default class RedditSavedPlugin extends Plugin {
   private apiClient: RedditApiClient;
   private mediaHandler: MediaHandler;
   private contentFormatter: ContentFormatter;
+  private templaterHandler: TemplaterHandler;
 
   async onload() {
     await this.loadSettings();
@@ -30,6 +32,7 @@ export default class RedditSavedPlugin extends Plugin {
     this.apiClient = new RedditApiClient(this.settings, () => this.auth.ensureValidToken());
     this.mediaHandler = new MediaHandler(this.app, this.settings);
     this.contentFormatter = new ContentFormatter(this.settings, this.mediaHandler);
+    this.templaterHandler = new TemplaterHandler(this.app, this.settings);
 
     // Add ribbon icon
     this.addRibbonIcon('download', 'Fetch Reddit saved posts', async () => {
@@ -206,8 +209,32 @@ export default class RedditSavedPlugin extends Plugin {
         counter++;
       }
 
-      const content = await this.contentFormatter.formatRedditContent(data, isComment);
-      await this.app.vault.create(filePath, content);
+      // Try to use Templater if enabled and available
+      let content: string;
+      let useTemplater = false;
+
+      if (this.templaterHandler.shouldUseTemplater(isComment)) {
+        const mediaInfo = this.mediaHandler.analyzeMedia(data);
+        const context = this.templaterHandler.buildContext(data, isComment, mediaInfo);
+        const templatedContent = await this.templaterHandler.processTemplate(context);
+
+        if (templatedContent !== null) {
+          content = templatedContent;
+          useTemplater = true;
+        } else {
+          // Fall back to default formatter if template processing fails
+          content = await this.contentFormatter.formatRedditContent(data, isComment);
+        }
+      } else {
+        content = await this.contentFormatter.formatRedditContent(data, isComment);
+      }
+
+      const file = await this.app.vault.create(filePath, content);
+
+      // Run Templater on the file to process any <% %> syntax
+      if (useTemplater && file instanceof TFile) {
+        await this.templaterHandler.runTemplaterOnFile(file);
+      }
 
       // Add to imported IDs
       if (!this.settings.importedIds.includes(redditId)) {

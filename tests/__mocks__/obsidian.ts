@@ -24,6 +24,17 @@ export class Vault {
   createBinary(_path: string, _data: ArrayBuffer) {
     return Promise.resolve();
   }
+
+  read(_file: TFile) {
+    return Promise.resolve('');
+  }
+}
+
+export class TFile {
+  path = '';
+  name = '';
+  basename = '';
+  extension = 'md';
 }
 
 export class MetadataCache {

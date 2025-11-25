@@ -22,16 +22,19 @@ describe('RedditApiClient', () => {
       tokenExpiry: Date.now() + 3600000,
       username: 'testuser',
       fetchLimit: 100,
-      outputPath: 'reddit-saved',
+      saveLocation: 'reddit-saved',
       skipExisting: true,
       autoUnsave: false,
-      downloadMedia: true,
       downloadImages: true,
       downloadGifs: true,
       downloadVideos: false,
-      mediaPath: 'assets/reddit',
+      mediaFolder: 'assets/reddit',
       oauthRedirectPort: 8080,
       importedIds: [],
+      showAdvancedSettings: false,
+      useTemplater: false,
+      postTemplatePath: '',
+      commentTemplatePath: '',
     };
 
     mockEnsureValidToken = jest.fn().mockResolvedValue(undefined);

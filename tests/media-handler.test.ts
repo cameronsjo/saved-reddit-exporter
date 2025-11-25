@@ -27,6 +27,9 @@ describe('MediaHandler', () => {
       downloadGifs: true,
       downloadVideos: true,
       mediaFolder: 'Attachments',
+      useTemplater: false,
+      postTemplatePath: '',
+      commentTemplatePath: '',
     };
 
     mockApp = new App();
