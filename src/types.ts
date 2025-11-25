@@ -16,6 +16,13 @@ export interface RedditSavedSettings {
   downloadGifs: boolean; // Download GIF files
   downloadVideos: boolean; // Download video files
   mediaFolder: string; // Folder for downloaded media
+  // Performance and reliability settings
+  enableEnhancedMode: boolean; // Enable advanced performance features
+  enableCheckpointing: boolean; // Enable resumable imports with checkpoints
+  showPerformanceStats: boolean; // Show performance stats after import
+  maxConcurrentRequests: number; // Maximum concurrent API requests
+  maxRetries: number; // Maximum retry attempts for failed requests
+  enableOfflineQueue: boolean; // Queue requests when offline
 }
 
 export interface MediaInfo {

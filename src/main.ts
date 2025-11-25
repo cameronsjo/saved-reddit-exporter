@@ -14,6 +14,8 @@ import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
 import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
+import { ImportStateManager, ImportProgress } from './import-state';
+import { PerformanceMonitor } from './performance-monitor';
 
 export default class RedditSavedPlugin extends Plugin {
   settings: RedditSavedSettings;
@@ -21,6 +23,9 @@ export default class RedditSavedPlugin extends Plugin {
   private apiClient: RedditApiClient;
   private mediaHandler: MediaHandler;
   private contentFormatter: ContentFormatter;
+  private importStateManager: ImportStateManager;
+  private performanceMonitor: PerformanceMonitor;
+  private currentAbortController: AbortController | null = null;
 
   async onload() {
     await this.loadSettings();
@@ -30,6 +35,15 @@ export default class RedditSavedPlugin extends Plugin {
     this.apiClient = new RedditApiClient(this.settings, () => this.auth.ensureValidToken());
     this.mediaHandler = new MediaHandler(this.app, this.settings);
     this.contentFormatter = new ContentFormatter(this.settings, this.mediaHandler);
+    this.importStateManager = new ImportStateManager(this.app, {
+      enableCheckpointing: this.settings.enableCheckpointing,
+    });
+    this.performanceMonitor = new PerformanceMonitor();
+
+    // Configure enhanced features based on settings
+    if (this.settings.enableEnhancedMode) {
+      this.apiClient.enableEnhancedFeatures(this.importStateManager);
+    }
 
     // Add ribbon icon
     this.addRibbonIcon('download', 'Fetch Reddit saved posts', async () => {
@@ -61,6 +75,30 @@ export default class RedditSavedPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: 'resume-reddit-import',
+      name: 'Resume interrupted import',
+      callback: async () => {
+        await this.resumeImport();
+      },
+    });
+
+    this.addCommand({
+      id: 'cancel-reddit-import',
+      name: 'Cancel current import',
+      callback: () => {
+        this.cancelImport();
+      },
+    });
+
+    this.addCommand({
+      id: 'show-import-status',
+      name: 'Show import status and performance',
+      callback: () => {
+        this.showImportStatus();
+      },
+    });
+
     // Add settings tab
     this.addSettingTab(
       new RedditSavedSettingTab(
@@ -71,6 +109,14 @@ export default class RedditSavedPlugin extends Plugin {
         () => this.auth.initiateOAuth()
       )
     );
+  }
+
+  onunload() {
+    // Clean up resources
+    this.importStateManager.cleanup();
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+    }
   }
 
   async loadSettings() {
@@ -88,19 +134,68 @@ export default class RedditSavedPlugin extends Plugin {
       return;
     }
 
+    // Check for resumable session first
+    if (this.settings.enableCheckpointing) {
+      const hasResumable = await this.importStateManager.hasResumableSession();
+      if (hasResumable) {
+        new Notice(
+          'Found interrupted import. Use "Resume interrupted import" command to continue, or start fresh.'
+        );
+      }
+    }
+
     try {
       await this.auth.ensureValidToken();
 
       new Notice(MSG_FETCHING_POSTS);
 
-      const savedItems = await this.apiClient.fetchAllSaved();
+      // Start performance monitoring
+      this.performanceMonitor.startSession();
+
+      // Create abort controller for cancellation
+      this.currentAbortController = new AbortController();
+
+      // Start new import session
+      this.importStateManager.startSession();
+
+      let savedItems: RedditItem[];
+
+      if (this.settings.enableEnhancedMode) {
+        // Use enhanced fetch with progress tracking
+        const result = await this.apiClient.fetchAllSavedEnhanced({
+          onProgress: (progress: ImportProgress) => {
+            this.handleProgressUpdate(progress);
+          },
+          signal: this.currentAbortController.signal,
+        });
+
+        if (result.wasCancelled) {
+          new Notice('Import was cancelled. You can resume later.');
+          return;
+        }
+
+        savedItems = result.items;
+      } else {
+        // Use legacy fetch
+        savedItems = await this.apiClient.fetchAllSaved();
+      }
 
       if (savedItems.length === 0) {
         new Notice(MSG_NO_POSTS_FOUND);
+        this.importStateManager.markCompleted();
         return;
       }
 
+      // Update state to processing phase
+      this.importStateManager.setPhase('processing');
+
       const result = await this.createMarkdownFiles(savedItems);
+
+      // Mark import as completed
+      this.importStateManager.markCompleted();
+
+      // End performance monitoring
+      this.performanceMonitor.endSession();
 
       // Provide detailed feedback
       if (result.skipped > 0) {
@@ -111,7 +206,16 @@ export default class RedditSavedPlugin extends Plugin {
         new Notice(`Successfully imported ${result.imported} saved items`);
       }
 
+      // Show performance stats if enabled
+      if (this.settings.showPerformanceStats) {
+        console.log(this.performanceMonitor.formatForDisplay());
+        new Notice(
+          'Performance stats logged to console. Use "Show import status" command for details.'
+        );
+      }
+
       if (this.settings.autoUnsave) {
+        this.importStateManager.setPhase('unsaving');
         // Only unsave newly imported items
         const itemsToUnsave = savedItems.filter(_item => {
           return !this.settings.skipExisting || result.imported > 0;
@@ -124,6 +228,139 @@ export default class RedditSavedPlugin extends Plugin {
       console.error('Error fetching saved posts:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       new Notice(`Error: ${errorMessage}`);
+
+      // Save state for potential resumption
+      if (this.settings.enableCheckpointing) {
+        this.importStateManager.pause();
+        new Notice('Import state saved. You can resume later.');
+      }
+    } finally {
+      this.currentAbortController = null;
+    }
+  }
+
+  /**
+   * Resume an interrupted import
+   */
+  async resumeImport() {
+    if (!this.auth.isAuthenticated()) {
+      new Notice(MSG_AUTH_REQUIRED);
+      return;
+    }
+
+    const checkpoint = await this.importStateManager.resumeSession();
+    if (!checkpoint) {
+      new Notice('No interrupted import found to resume.');
+      return;
+    }
+
+    new Notice(`Resuming import from ${checkpoint.fetchedCount} items...`);
+
+    try {
+      await this.auth.ensureValidToken();
+
+      // Create new abort controller
+      this.currentAbortController = new AbortController();
+
+      // Resume from saved cursor
+      const result = await this.apiClient.fetchAllSavedEnhanced({
+        startCursor: checkpoint.afterCursor,
+        onProgress: (progress: ImportProgress) => {
+          this.handleProgressUpdate(progress);
+        },
+        signal: this.currentAbortController.signal,
+      });
+
+      if (result.wasCancelled) {
+        new Notice('Import was cancelled. You can resume later.');
+        return;
+      }
+
+      // Get pending items that weren't processed
+      const pendingItems = this.importStateManager.getPendingItems();
+      const allItems = [...pendingItems, ...result.items];
+
+      if (allItems.length === 0) {
+        new Notice('No more items to import.');
+        this.importStateManager.markCompleted();
+        return;
+      }
+
+      this.importStateManager.setPhase('processing');
+      const importResult = await this.createMarkdownFiles(allItems);
+
+      this.importStateManager.markCompleted();
+
+      new Notice(
+        `Resume complete: Imported ${importResult.imported} items, skipped ${importResult.skipped}`
+      );
+    } catch (error) {
+      console.error('Error resuming import:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Error resuming: ${errorMessage}`);
+      this.importStateManager.pause();
+    } finally {
+      this.currentAbortController = null;
+    }
+  }
+
+  /**
+   * Cancel the current import
+   */
+  cancelImport() {
+    if (this.currentAbortController) {
+      this.currentAbortController.abort();
+      this.importStateManager.markCancelled();
+      new Notice('Import cancelled. State saved for later resumption.');
+    } else {
+      new Notice('No import in progress.');
+    }
+  }
+
+  /**
+   * Show current import status and performance metrics
+   */
+  showImportStatus() {
+    const progress = this.importStateManager.getProgress();
+    const queueStatus = this.apiClient.getQueueStatus();
+
+    let statusMessage = '=== Import Status ===\n';
+
+    if (progress) {
+      statusMessage += `Phase: ${progress.phase}\n`;
+      statusMessage += `Fetched: ${progress.fetchedCount}\n`;
+      statusMessage += `Processed: ${progress.processedCount}\n`;
+      statusMessage += `Imported: ${progress.importedCount}\n`;
+      statusMessage += `Skipped: ${progress.skippedCount}\n`;
+      statusMessage += `Failed: ${progress.failedCount}\n`;
+      statusMessage += `Speed: ${progress.itemsPerSecond.toFixed(2)} items/sec\n`;
+    } else {
+      statusMessage += 'No active import session.\n';
+    }
+
+    statusMessage += '\n=== Queue Status ===\n';
+    statusMessage += `Pending requests: ${queueStatus.queueLength}\n`;
+    statusMessage += `Active requests: ${queueStatus.activeRequests}\n`;
+    statusMessage += `Circuit breaker: ${queueStatus.circuitState}\n`;
+    statusMessage += `Online: ${queueStatus.isOnline}\n`;
+
+    // Log full performance report
+    console.log(statusMessage);
+    console.log('\n' + this.performanceMonitor.formatForDisplay());
+
+    new Notice(`Import status logged to console. Phase: ${progress?.phase || 'idle'}`);
+  }
+
+  /**
+   * Handle progress updates during import
+   */
+  private handleProgressUpdate(progress: ImportProgress) {
+    // Could be used to update UI in the future
+    // For now, just log significant milestones
+    if (progress.processedCount > 0 && progress.processedCount % 50 === 0) {
+      new Notice(
+        `Progress: ${progress.processedCount} items processed (${progress.itemsPerSecond.toFixed(1)}/sec)`
+      );
     }
   }
 
@@ -176,12 +413,19 @@ export default class RedditSavedPlugin extends Plugin {
     let skippedCount = 0;
 
     for (const item of items) {
+      // Check for cancellation
+      if (this.currentAbortController?.signal.aborted) {
+        break;
+      }
+
       const data = item.data;
       const redditId = data.id;
 
       // Check if this post has already been imported
       if (this.settings.skipExisting && existingIds.has(redditId)) {
         skippedCount++;
+        this.importStateManager.markItemSkipped(redditId);
+        this.performanceMonitor.recordItemProcessed('skipped');
         continue;
       }
 
@@ -193,28 +437,42 @@ export default class RedditSavedPlugin extends Plugin {
       if (!isPathSafe(rawFileName)) {
         console.warn(`Skipping potentially unsafe filename: ${rawFileName}`);
         skippedCount++;
+        this.importStateManager.markItemFailed(redditId, 'Unsafe filename', false);
+        this.performanceMonitor.recordItemProcessed('failed');
         continue;
       }
 
-      const fileName = sanitizeFileName(rawFileName);
+      try {
+        const fileName = sanitizeFileName(rawFileName);
 
-      // Generate unique filename if it already exists
-      let filePath = `${this.settings.saveLocation}/${fileName}.md`;
-      let counter = 1;
-      while (this.app.vault.getAbstractFileByPath(filePath)) {
-        filePath = `${this.settings.saveLocation}/${fileName} ${counter}.md`;
-        counter++;
+        // Generate unique filename if it already exists
+        let filePath = `${this.settings.saveLocation}/${fileName}.md`;
+        let counter = 1;
+        while (this.app.vault.getAbstractFileByPath(filePath)) {
+          filePath = `${this.settings.saveLocation}/${fileName} ${counter}.md`;
+          counter++;
+        }
+
+        const content = await this.contentFormatter.formatRedditContent(data, isComment);
+        await this.app.vault.create(filePath, content);
+
+        // Record file creation
+        this.performanceMonitor.recordFileCreated();
+
+        // Add to imported IDs
+        if (!this.settings.importedIds.includes(redditId)) {
+          this.settings.importedIds.push(redditId);
+        }
+
+        importedCount++;
+        this.importStateManager.markItemImported(redditId);
+        this.performanceMonitor.recordItemProcessed('imported');
+      } catch (error) {
+        console.error(`Error creating file for item ${redditId}:`, error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.importStateManager.markItemFailed(redditId, errorMessage, true);
+        this.performanceMonitor.recordItemProcessed('failed');
       }
-
-      const content = await this.contentFormatter.formatRedditContent(data, isComment);
-      await this.app.vault.create(filePath, content);
-
-      // Add to imported IDs
-      if (!this.settings.importedIds.includes(redditId)) {
-        this.settings.importedIds.push(redditId);
-      }
-
-      importedCount++;
     }
 
     // Save updated imported IDs

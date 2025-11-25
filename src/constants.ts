@@ -116,4 +116,11 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   downloadGifs: false,
   downloadVideos: false,
   mediaFolder: DEFAULT_MEDIA_FOLDER,
+  // Performance and reliability defaults
+  enableEnhancedMode: true,
+  enableCheckpointing: true,
+  showPerformanceStats: false,
+  maxConcurrentRequests: 2,
+  maxRetries: 3,
+  enableOfflineQueue: true,
 };

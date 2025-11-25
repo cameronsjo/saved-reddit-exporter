@@ -23,14 +23,112 @@ import {
   CONTENT_TYPE_FORM_URLENCODED,
   HEADER_RETRY_AFTER,
 } from './constants';
+import { RequestQueue, CircuitState } from './request-queue';
+import { PerformanceMonitor } from './performance-monitor';
+import { ImportStateManager, ImportProgress, ProgressCallback } from './import-state';
+
+/**
+ * Options for fetch operations
+ */
+export interface FetchOptions {
+  /** Starting cursor for pagination (for resuming) */
+  startCursor?: string;
+  /** Callback for progress updates */
+  onProgress?: ProgressCallback;
+  /** Signal for cancellation */
+  signal?: AbortSignal;
+}
+
+/**
+ * Result of a fetch operation
+ */
+export interface FetchResult {
+  items: RedditItem[];
+  cursor: string;
+  hasMore: boolean;
+  wasCancelled: boolean;
+}
 
 export class RedditApiClient {
   private settings: RedditSavedSettings;
   private ensureValidToken: () => Promise<void>;
+  private requestQueue: RequestQueue;
+  private performanceMonitor: PerformanceMonitor;
+  private importStateManager: ImportStateManager | null = null;
+  private useEnhancedFeatures: boolean = false;
 
   constructor(settings: RedditSavedSettings, ensureValidToken: () => Promise<void>) {
     this.settings = settings;
     this.ensureValidToken = ensureValidToken;
+    this.requestQueue = new RequestQueue();
+    this.performanceMonitor = new PerformanceMonitor();
+    this.requestQueue.setPerformanceMonitor(this.performanceMonitor);
+  }
+
+  /**
+   * Enable enhanced performance and resilience features
+   */
+  enableEnhancedFeatures(stateManager?: ImportStateManager): void {
+    this.useEnhancedFeatures = true;
+    this.importStateManager = stateManager || null;
+  }
+
+  /**
+   * Disable enhanced features (use legacy mode)
+   */
+  disableEnhancedFeatures(): void {
+    this.useEnhancedFeatures = false;
+    this.importStateManager = null;
+  }
+
+  /**
+   * Get performance monitor for metrics access
+   */
+  getPerformanceMonitor(): PerformanceMonitor {
+    return this.performanceMonitor;
+  }
+
+  /**
+   * Get request queue status
+   */
+  getQueueStatus(): {
+    queueLength: number;
+    activeRequests: number;
+    circuitState: CircuitState;
+    availableTokens: number;
+    isPaused: boolean;
+    isOnline: boolean;
+    offlineQueueSize: number;
+  } {
+    return this.requestQueue.getStatus();
+  }
+
+  /**
+   * Pause all requests
+   */
+  pauseRequests(): void {
+    this.requestQueue.pause();
+  }
+
+  /**
+   * Resume request processing
+   */
+  resumeRequests(): void {
+    this.requestQueue.resume();
+  }
+
+  /**
+   * Set online/offline status
+   */
+  setOnline(online: boolean): void {
+    this.requestQueue.setOnline(online);
+  }
+
+  /**
+   * Reset circuit breaker after manual intervention
+   */
+  resetCircuitBreaker(): void {
+    this.requestQueue.resetCircuitBreaker();
   }
 
   private handleRateLimit(response: { headers: Record<string, string> }): number {
@@ -189,5 +287,152 @@ export class RedditApiClient {
     };
 
     await this.makeRateLimitedRequest(params);
+  }
+
+  /**
+   * Enhanced fetch with resumable support and progress tracking
+   * This method supports cancellation, resumption, and detailed progress reporting
+   */
+  async fetchAllSavedEnhanced(options: FetchOptions = {}): Promise<FetchResult> {
+    const { startCursor = '', onProgress, signal } = options;
+
+    // Start performance monitoring
+    this.performanceMonitor.startSession();
+
+    const items: RedditItem[] = [];
+    let after = startCursor;
+    let hasMore = true;
+    let pageCount = 0;
+    let wasCancelled = false;
+    const maxPages = Math.ceil(
+      Math.min(this.settings.fetchLimit, REDDIT_MAX_ITEMS) / REDDIT_PAGE_SIZE
+    );
+
+    // Update import state if available
+    if (this.importStateManager) {
+      this.importStateManager.setPhase('fetching');
+      if (startCursor) {
+        this.importStateManager.setCursor(startCursor);
+      }
+    }
+
+    new Notice(
+      `Fetching saved posts (max ${Math.min(this.settings.fetchLimit, REDDIT_MAX_ITEMS)})...`
+    );
+
+    try {
+      while (hasMore && items.length < this.settings.fetchLimit && pageCount < maxPages) {
+        // Check for cancellation
+        if (signal?.aborted) {
+          wasCancelled = true;
+          break;
+        }
+
+        // Check import state for pause/cancel
+        if (this.importStateManager && !this.importStateManager.shouldContinue()) {
+          wasCancelled = true;
+          break;
+        }
+
+        pageCount++;
+        const pageSize = Math.min(REDDIT_PAGE_SIZE, this.settings.fetchLimit - items.length);
+
+        await this.ensureValidToken();
+
+        const params: RequestUrlParam = {
+          url: `${REDDIT_OAUTH_BASE_URL}/user/${this.settings.username}/saved?limit=${pageSize}${after ? `&after=${after}` : ''}`,
+          method: 'GET',
+          headers: {
+            [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+            [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
+          },
+        };
+
+        let response;
+        if (this.useEnhancedFeatures) {
+          // Use the enhanced request queue
+          response = await this.requestQueue.enqueue(params, { priority: 'high' });
+        } else {
+          // Fall back to legacy method
+          response = await this.makeRateLimitedRequest(params);
+        }
+
+        const data = response.json.data;
+
+        if (data.children && data.children.length > 0) {
+          items.push(...data.children);
+          after = data.after || '';
+          hasMore = !!after && items.length < REDDIT_MAX_ITEMS;
+
+          // Record metrics
+          this.performanceMonitor.recordItemsFetched(data.children.length);
+
+          // Update import state
+          if (this.importStateManager) {
+            this.importStateManager.setCursor(after);
+            this.importStateManager.addFetchedItems(data.children);
+          }
+
+          // Update progress
+          if (pageCount % PROGRESS_UPDATE_FREQUENCY === 0 || !hasMore) {
+            new Notice(`Fetched ${items.length} saved items...`);
+
+            if (onProgress && this.importStateManager) {
+              const progress = this.importStateManager.getProgress();
+              if (progress) {
+                onProgress(progress);
+              }
+            }
+          }
+        } else {
+          hasMore = false;
+        }
+
+        // Prevent infinite loops
+        if (pageCount >= MAX_PAGES_SAFETY_LIMIT) {
+          console.warn(`Reached safety limit of ${MAX_PAGES_SAFETY_LIMIT} pages`);
+          break;
+        }
+      }
+    } catch (error) {
+      console.error('Error during enhanced fetch:', error);
+
+      // Save state for potential resumption
+      if (this.importStateManager) {
+        this.importStateManager.pause();
+      }
+
+      throw error;
+    }
+
+    const finalCount = Math.min(items.length, this.settings.fetchLimit);
+
+    return {
+      items: items.slice(0, finalCount),
+      cursor: after,
+      hasMore,
+      wasCancelled,
+    };
+  }
+
+  /**
+   * Get performance summary after fetch operation
+   */
+  getPerformanceSummary(): string {
+    return this.performanceMonitor.formatForDisplay();
+  }
+
+  /**
+   * Check if there are pending requests in the queue
+   */
+  hasPendingRequests(): boolean {
+    return this.requestQueue.getPendingCount() > 0;
+  }
+
+  /**
+   * Clear all pending requests
+   */
+  clearPendingRequests(): void {
+    this.requestQueue.clear();
   }
 }

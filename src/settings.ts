@@ -248,6 +248,97 @@ export class RedditSavedSettingTab extends PluginSettingTab {
             await this.saveSettings();
           })
         );
+
+      // Performance and Reliability Settings
+      new Setting(containerEl).setName('Performance and reliability').setHeading();
+
+      const perfInfo = containerEl.createDiv();
+      perfInfo.setCssProps({
+        backgroundColor: 'var(--background-secondary)',
+        padding: '10px',
+        borderRadius: '4px',
+        marginBottom: '15px',
+      });
+
+      perfInfo.createEl('strong', { text: 'Performance features' });
+      perfInfo.createEl('br');
+      perfInfo.createSpan({
+        text: 'These settings improve reliability for large imports and unreliable networks.',
+      });
+
+      new Setting(containerEl)
+        .setName('Enhanced mode')
+        .setDesc(
+          'Enable advanced features: circuit breaker, request queuing, and adaptive rate limiting'
+        )
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.enableEnhancedMode).onChange(async value => {
+            this.settings.enableEnhancedMode = value;
+            await this.saveSettings();
+          })
+        );
+
+      new Setting(containerEl)
+        .setName('Enable checkpointing')
+        .setDesc('Save import progress to allow resuming interrupted imports')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.enableCheckpointing).onChange(async value => {
+            this.settings.enableCheckpointing = value;
+            await this.saveSettings();
+          })
+        );
+
+      new Setting(containerEl)
+        .setName('Show performance stats')
+        .setDesc('Display performance metrics after each import (logged to console)')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.showPerformanceStats).onChange(async value => {
+            this.settings.showPerformanceStats = value;
+            await this.saveSettings();
+          })
+        );
+
+      new Setting(containerEl)
+        .setName('Max concurrent requests')
+        .setDesc('Maximum number of simultaneous API requests (1-5). Lower values are safer.')
+        .addText(text =>
+          text
+            .setPlaceholder('2')
+            .setValue(String(this.settings.maxConcurrentRequests))
+            .onChange(async value => {
+              const num = parseInt(value);
+              if (!isNaN(num) && num >= 1 && num <= 5) {
+                this.settings.maxConcurrentRequests = num;
+                await this.saveSettings();
+              }
+            })
+        );
+
+      new Setting(containerEl)
+        .setName('Max retries')
+        .setDesc('Maximum retry attempts for failed requests (1-10)')
+        .addText(text =>
+          text
+            .setPlaceholder('3')
+            .setValue(String(this.settings.maxRetries))
+            .onChange(async value => {
+              const num = parseInt(value);
+              if (!isNaN(num) && num >= 1 && num <= 10) {
+                this.settings.maxRetries = num;
+                await this.saveSettings();
+              }
+            })
+        );
+
+      new Setting(containerEl)
+        .setName('Offline queue')
+        .setDesc('Queue requests when offline and process them when connection is restored')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.enableOfflineQueue).onChange(async value => {
+            this.settings.enableOfflineQueue = value;
+            await this.saveSettings();
+          })
+        );
     }
   }
 }
