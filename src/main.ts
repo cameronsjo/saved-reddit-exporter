@@ -13,7 +13,7 @@ import { RedditApiClient } from './api-client';
 import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
-import { UnsaveSelectionModal } from './unsave-modal';
+import { UnsaveSelectionModal, AutoUnsaveConfirmModal } from './unsave-modal';
 import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
 
 export default class RedditSavedPlugin extends Plugin {
@@ -133,16 +133,18 @@ export default class RedditSavedPlugin extends Plugin {
   private async handleUnsave(importedItems: RedditItem[]): Promise<void> {
     switch (this.settings.unsaveMode) {
       case 'auto':
-        // Automatically unsave all imported items
-        await this.apiClient.unsaveItems(importedItems);
+        // Show confirmation before auto-unsaving
+        new AutoUnsaveConfirmModal(this.app, importedItems.length, async () => {
+          await this.apiClient.unsaveItems(importedItems);
+        }).open();
         break;
 
       case 'prompt':
         // Show selection modal for user to choose which items to unsave
+        // The callback receives items one at a time for per-item progress tracking
         new UnsaveSelectionModal(this.app, importedItems, async (selectedItems: RedditItem[]) => {
-          if (selectedItems.length > 0) {
-            await this.apiClient.unsaveItems(selectedItems);
-          }
+          // This is called per-item from the modal for progress tracking
+          await this.apiClient.unsaveItems(selectedItems);
         }).open();
         break;
 
