@@ -1,4 +1,4 @@
-import { RedditSavedSettings } from './types';
+import { RedditSavedSettings, FilterSettings, PostType } from './types';
 
 // OAuth Configuration
 export const DEFAULT_REDIRECT_PORT = 9638;
@@ -98,6 +98,49 @@ export const FRONTMATTER_TYPE_COMMENT = 'reddit-comment';
 // Backoff Configuration
 export const BACKOFF_MAX_DELAY_MS = 30000; // 30 seconds max backoff
 
+// Default Filter Settings
+export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
+  enabled: false,
+
+  // Subreddit filtering
+  subredditFilterMode: 'exclude',
+  subredditList: [],
+  subredditRegex: '',
+  useSubredditRegex: false,
+
+  // Content filtering
+  titleKeywords: [],
+  titleKeywordsMode: 'include',
+  contentKeywords: [],
+  contentKeywordsMode: 'include',
+  flairList: [],
+  flairFilterMode: 'include',
+
+  // Score filtering
+  minScore: null,
+  maxScore: null,
+  minUpvoteRatio: null,
+
+  // Post type filtering
+  includePostTypes: ['text', 'link', 'image', 'video'] as PostType[],
+  includeComments: true,
+  includePosts: true,
+
+  // Date range filtering
+  dateRangePreset: 'all',
+  dateRangeStart: null,
+  dateRangeEnd: null,
+
+  // Advanced filters
+  authorFilterMode: 'exclude',
+  authorList: [],
+  minCommentCount: null,
+  maxCommentCount: null,
+  domainFilterMode: 'exclude',
+  domainList: [],
+  excludeNsfw: false,
+};
+
 export const DEFAULT_SETTINGS: RedditSavedSettings = {
   clientId: '',
   clientSecret: '',
@@ -116,4 +159,12 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   downloadGifs: false,
   downloadVideos: false,
   mediaFolder: DEFAULT_MEDIA_FOLDER,
+  filterSettings: DEFAULT_FILTER_SETTINGS,
+  showFilterSettings: false,
 };
+
+// Filter-related messages
+export const MSG_FILTER_PREVIEW = 'Preview mode: showing what would be imported...';
+export const MSG_FILTER_RESULTS = (imported: number, filtered: number, skipped: number) =>
+  `Would import ${imported}, filter ${filtered}, skip ${skipped} items`;
+export const MSG_INVALID_REGEX = 'Invalid regex pattern in filter settings';
