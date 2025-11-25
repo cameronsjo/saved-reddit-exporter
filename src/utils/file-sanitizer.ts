@@ -131,11 +131,11 @@ export function normalizePath(path: string): string {
 /**
  * Sanitizes a subreddit name for use as a folder name
  * @param subreddit - The subreddit name (without r/ prefix)
- * @returns A sanitized folder name like "r-subredditname"
+ * @returns A sanitized folder name (lowercase, no prefix)
  */
 export function sanitizeSubredditName(subreddit: string): string {
   if (!subreddit || subreddit.trim() === '') {
-    return 'r-unknown';
+    return 'unknown';
   }
 
   // Remove any r/ prefix if present
@@ -148,8 +148,8 @@ export function sanitizeSubredditName(subreddit: string): string {
     .toLowerCase();
 
   if (name.length === 0) {
-    return 'r-unknown';
+    return 'unknown';
   }
 
-  return `r-${name}`;
+  return name;
 }

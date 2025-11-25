@@ -171,7 +171,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Organize by subreddit')
-      .setDesc('Create subfolders for each subreddit (e.g., Reddit Saved/r-Obsidian/)')
+      .setDesc('Create subfolders for each subreddit (e.g., Reddit Saved/obsidian/)')
       .addToggle(toggle =>
         toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
           this.settings.organizeBySubreddit = value;

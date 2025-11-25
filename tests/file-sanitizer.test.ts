@@ -55,34 +55,34 @@ describe('file-sanitizer', () => {
 
   describe('sanitizeSubredditName', () => {
     it('should create proper folder name from subreddit', () => {
-      expect(sanitizeSubredditName('Obsidian')).toBe('r-obsidian');
-      expect(sanitizeSubredditName('AskReddit')).toBe('r-askreddit');
-      expect(sanitizeSubredditName('programming')).toBe('r-programming');
+      expect(sanitizeSubredditName('Obsidian')).toBe('obsidian');
+      expect(sanitizeSubredditName('AskReddit')).toBe('askreddit');
+      expect(sanitizeSubredditName('programming')).toBe('programming');
     });
 
     it('should handle subreddits with underscores', () => {
-      expect(sanitizeSubredditName('learn_programming')).toBe('r-learn_programming');
-      expect(sanitizeSubredditName('web_dev')).toBe('r-web_dev');
+      expect(sanitizeSubredditName('learn_programming')).toBe('learn_programming');
+      expect(sanitizeSubredditName('web_dev')).toBe('web_dev');
     });
 
     it('should remove r/ prefix if present', () => {
-      expect(sanitizeSubredditName('r/Obsidian')).toBe('r-obsidian');
-      expect(sanitizeSubredditName('R/AskReddit')).toBe('r-askreddit');
+      expect(sanitizeSubredditName('r/Obsidian')).toBe('obsidian');
+      expect(sanitizeSubredditName('R/AskReddit')).toBe('askreddit');
     });
 
     it('should handle empty or invalid input', () => {
-      expect(sanitizeSubredditName('')).toBe('r-unknown');
-      expect(sanitizeSubredditName('   ')).toBe('r-unknown');
+      expect(sanitizeSubredditName('')).toBe('unknown');
+      expect(sanitizeSubredditName('   ')).toBe('unknown');
     });
 
     it('should remove special characters', () => {
-      expect(sanitizeSubredditName('test!@#$%')).toBe('r-test');
-      expect(sanitizeSubredditName('sub-reddit')).toBe('r-subreddit');
+      expect(sanitizeSubredditName('test!@#$%')).toBe('test');
+      expect(sanitizeSubredditName('sub-reddit')).toBe('subreddit');
     });
 
     it('should handle subreddits with numbers', () => {
-      expect(sanitizeSubredditName('2meirl4meirl')).toBe('r-2meirl4meirl');
-      expect(sanitizeSubredditName('formula1')).toBe('r-formula1');
+      expect(sanitizeSubredditName('2meirl4meirl')).toBe('2meirl4meirl');
+      expect(sanitizeSubredditName('formula1')).toBe('formula1');
     });
   });
 });
