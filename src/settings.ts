@@ -1,5 +1,5 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { RedditSavedSettings } from './types';
+import { RedditSavedSettings, UnsaveMode } from './types';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 
@@ -160,15 +160,22 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Auto-unsave')
+      .setName('Unsave after import')
       .setDesc(
-        'Automatically unsave posts from Reddit after importing. Note: If you previously authenticated without this feature, you must re-authenticate to grant the required permission.'
+        'Choose how to handle unsaving posts from Reddit after importing. Note: If you previously authenticated without this feature, you must re-authenticate to grant the required permission.'
       )
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.autoUnsave).onChange(async value => {
-          this.settings.autoUnsave = value;
-          await this.saveSettings();
-        })
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('off', 'Off - Keep saved on Reddit')
+          .addOption('prompt', 'Prompt - Choose which to unsave')
+          .addOption('auto', 'Auto - Unsave all imported')
+          .setValue(this.settings.unsaveMode)
+          .onChange(async value => {
+            this.settings.unsaveMode = value as UnsaveMode;
+            // Keep legacy setting in sync for backwards compatibility
+            this.settings.autoUnsave = value === 'auto';
+            await this.saveSettings();
+          })
       );
 
     // Advanced Settings Section

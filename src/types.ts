@@ -1,3 +1,5 @@
+export type UnsaveMode = 'off' | 'prompt' | 'auto';
+
 export interface RedditSavedSettings {
   clientId: string;
   clientSecret: string;
@@ -6,7 +8,8 @@ export interface RedditSavedSettings {
   tokenExpiry: number;
   username: string;
   saveLocation: string;
-  autoUnsave: boolean;
+  autoUnsave: boolean; // Deprecated: use unsaveMode instead
+  unsaveMode: UnsaveMode; // 'off' | 'prompt' | 'auto'
   fetchLimit: number;
   importedIds: string[]; // Track imported Reddit IDs
   skipExisting: boolean; // Skip already imported posts

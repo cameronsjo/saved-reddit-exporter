@@ -107,6 +107,7 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   username: '',
   saveLocation: DEFAULT_SAVE_LOCATION,
   autoUnsave: false,
+  unsaveMode: 'off',
   fetchLimit: REDDIT_MAX_ITEMS,
   importedIds: [],
   skipExisting: true,

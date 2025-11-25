@@ -13,6 +13,7 @@ import { RedditApiClient } from './api-client';
 import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
+import { UnsaveSelectionModal } from './unsave-modal';
 import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
 
 export default class RedditSavedPlugin extends Plugin {
@@ -74,7 +75,14 @@ export default class RedditSavedPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const savedData = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, savedData);
+
+    // Migration: convert old autoUnsave boolean to new unsaveMode
+    if (savedData && savedData.autoUnsave && !savedData.unsaveMode) {
+      this.settings.unsaveMode = 'auto';
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -111,14 +119,37 @@ export default class RedditSavedPlugin extends Plugin {
         new Notice(`Successfully imported ${result.imported} saved items`);
       }
 
-      if (this.settings.autoUnsave && result.importedItems.length > 0) {
-        // Only unsave newly imported items
-        await this.apiClient.unsaveItems(result.importedItems);
+      // Handle unsave based on mode
+      if (result.importedItems.length > 0) {
+        await this.handleUnsave(result.importedItems);
       }
     } catch (error) {
       console.error('Error fetching saved posts:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       new Notice(`Error: ${errorMessage}`);
+    }
+  }
+
+  private async handleUnsave(importedItems: RedditItem[]): Promise<void> {
+    switch (this.settings.unsaveMode) {
+      case 'auto':
+        // Automatically unsave all imported items
+        await this.apiClient.unsaveItems(importedItems);
+        break;
+
+      case 'prompt':
+        // Show selection modal for user to choose which items to unsave
+        new UnsaveSelectionModal(this.app, importedItems, async (selectedItems: RedditItem[]) => {
+          if (selectedItems.length > 0) {
+            await this.apiClient.unsaveItems(selectedItems);
+          }
+        }).open();
+        break;
+
+      case 'off':
+      default:
+        // Do nothing
+        break;
     }
   }
 
