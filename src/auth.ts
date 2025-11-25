@@ -1,9 +1,27 @@
 import { App, Notice, Modal, TextComponent, requestUrl, RequestUrlParam } from 'obsidian';
 import { RedditSavedSettings } from './types';
-
-// Constants
-export const REDDIT_OAUTH_SCOPES = 'identity history read';
-export const REDDIT_USER_AGENT = 'Obsidian:saved-reddit-exporter:v1.0.0';
+import {
+  OAUTH_SCOPES,
+  OAUTH_DURATION,
+  OAUTH_RESPONSE_TYPE,
+  OAUTH_TIMEOUT_MS,
+  REDDIT_USER_AGENT,
+  REDDIT_OAUTH_AUTHORIZE_URL,
+  REDDIT_OAUTH_TOKEN_URL,
+  REDDIT_OAUTH_BASE_URL,
+  MSG_AUTH_IN_PROGRESS,
+  MSG_ENTER_CREDENTIALS,
+  MSG_AUTH_SUCCESS,
+  MSG_AUTH_CANCELLED,
+  MSG_OAUTH_TIMEOUT,
+  CONTENT_TYPE_HTML,
+  CONTENT_TYPE_FORM_URLENCODED,
+  HEADER_AUTHORIZATION,
+  HEADER_CONTENT_TYPE,
+  HEADER_USER_AGENT,
+} from './constants';
+import { escapeHtml } from './utils/html-escape';
+import { generateCsrfToken } from './utils/crypto-utils';
 
 export class RedditAuth {
   private app: App;
@@ -20,28 +38,28 @@ export class RedditAuth {
 
   async initiateOAuth(): Promise<void> {
     if (this.authorizationInProgress) {
-      new Notice('Authorization already in progress');
+      new Notice(MSG_AUTH_IN_PROGRESS);
       return;
     }
 
     if (!this.settings.clientId || !this.settings.clientSecret) {
-      new Notice('Please enter your client ID and client secret in plugin settings first');
+      new Notice(MSG_ENTER_CREDENTIALS);
       return;
     }
 
     this.authorizationInProgress = true;
 
-    const state = Math.random().toString(36).substring(2, 15);
+    const state = generateCsrfToken();
     const redirectUri = `http://localhost:${this.settings.oauthRedirectPort}`;
 
     const authUrl =
-      `https://www.reddit.com/api/v1/authorize?` +
+      `${REDDIT_OAUTH_AUTHORIZE_URL}?` +
       `client_id=${this.settings.clientId}` +
-      `&response_type=code` +
+      `&response_type=${OAUTH_RESPONSE_TYPE}` +
       `&state=${state}` +
       `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&duration=permanent` +
-      `&scope=${encodeURIComponent(REDDIT_OAUTH_SCOPES)}`;
+      `&duration=${OAUTH_DURATION}` +
+      `&scope=${encodeURIComponent(OAUTH_SCOPES)}`;
 
     // Store state for verification
     const currentData = { ...this.settings };
@@ -113,14 +131,15 @@ export class RedditAuth {
               const error = url.searchParams.get('error');
 
               // Send response to browser
-              res.writeHead(200, { 'Content-Type': 'text/html' });
+              res.writeHead(200, { [HEADER_CONTENT_TYPE]: CONTENT_TYPE_HTML });
 
               if (error) {
+                const escapedError = escapeHtml(error);
                 res.end(`
                                 <html>
                                     <body>
                                         <h1>Authorization Failed</h1>
-                                        <p>Error: ${error}</p>
+                                        <p>Error: ${escapedError}</p>
                                         <p>You can close this window and try again in Obsidian.</p>
                                     </body>
                                 </html>
@@ -212,24 +231,21 @@ export class RedditAuth {
           resolve();
         });
 
-        // Auto-close server after 5 minutes to prevent hanging
-        setTimeout(
-          () => {
-            if (
-              this.oauthServer &&
-              typeof this.oauthServer === 'object' &&
-              'close' in this.oauthServer
-            ) {
-              (this.oauthServer as { close: () => void }).close();
-              this.oauthServer = null;
-              if (this.authorizationInProgress) {
-                new Notice('OAuth server timed out. Please try authenticating again.');
-                this.authorizationInProgress = false;
-              }
+        // Auto-close server after timeout to prevent hanging
+        setTimeout(() => {
+          if (
+            this.oauthServer &&
+            typeof this.oauthServer === 'object' &&
+            'close' in this.oauthServer
+          ) {
+            (this.oauthServer as { close: () => void }).close();
+            this.oauthServer = null;
+            if (this.authorizationInProgress) {
+              new Notice(MSG_OAUTH_TIMEOUT);
+              this.authorizationInProgress = false;
             }
-          },
-          5 * 60 * 1000
-        ); // 5 minutes
+          }
+        }, OAUTH_TIMEOUT_MS);
       } catch (error) {
         reject(error instanceof Error ? error : new Error(String(error)));
       }
@@ -256,10 +272,11 @@ export class RedditAuth {
         );
       }
       await this.exchangeCodeForToken(code);
-      new Notice('Successfully authenticated with Reddit!');
+      new Notice(MSG_AUTH_SUCCESS);
     } catch (error) {
       console.error('OAuth callback error:', error);
-      new Notice(`Failed to authenticate: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to authenticate: ${errorMessage}`);
     } finally {
       this.authorizationInProgress = false;
       this.stopOAuthServer();
@@ -281,9 +298,10 @@ export class RedditAuth {
         void (async () => {
           try {
             await this.handleManualAuthCode(code, state);
-            new Notice('Successfully authenticated with Reddit!');
+            new Notice(MSG_AUTH_SUCCESS);
           } catch (error) {
-            new Notice(`Failed to authenticate: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            new Notice(`Failed to authenticate: ${errorMessage}`);
           } finally {
             this.authorizationInProgress = false;
           }
@@ -292,7 +310,7 @@ export class RedditAuth {
       // Cancel callback
       () => {
         this.authorizationInProgress = false;
-        new Notice('Reddit authentication cancelled');
+        new Notice(MSG_AUTH_CANCELLED);
       }
     );
     modal.open();
@@ -312,11 +330,11 @@ export class RedditAuth {
     const auth = btoa(`${this.settings.clientId}:${this.settings.clientSecret}`);
 
     const params: RequestUrlParam = {
-      url: 'https://www.reddit.com/api/v1/access_token',
+      url: REDDIT_OAUTH_TOKEN_URL,
       method: 'POST',
       headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        [HEADER_AUTHORIZATION]: `Basic ${auth}`,
+        [HEADER_CONTENT_TYPE]: CONTENT_TYPE_FORM_URLENCODED,
       },
       body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(`http://localhost:${this.settings.oauthRedirectPort}`)}`,
     };
@@ -343,11 +361,11 @@ export class RedditAuth {
     const auth = btoa(`${this.settings.clientId}:${this.settings.clientSecret}`);
 
     const params: RequestUrlParam = {
-      url: 'https://www.reddit.com/api/v1/access_token',
+      url: REDDIT_OAUTH_TOKEN_URL,
       method: 'POST',
       headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/x-www-form-urlencoded',
+        [HEADER_AUTHORIZATION]: `Basic ${auth}`,
+        [HEADER_CONTENT_TYPE]: CONTENT_TYPE_FORM_URLENCODED,
       },
       body: `grant_type=refresh_token&refresh_token=${this.settings.refreshToken}`,
     };
@@ -374,11 +392,11 @@ export class RedditAuth {
     await this.ensureValidToken();
 
     const params: RequestUrlParam = {
-      url: 'https://oauth.reddit.com/api/v1/me',
+      url: `${REDDIT_OAUTH_BASE_URL}/api/v1/me`,
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${this.settings.accessToken}`,
-        'User-Agent': REDDIT_USER_AGENT,
+        [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+        [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
       },
     };
 

@@ -1,5 +1,21 @@
 import { App, requestUrl, normalizePath } from 'obsidian';
 import { RedditSavedSettings, MediaInfo, RedditItemData } from './types';
+import {
+  IMAGE_EXTENSIONS,
+  VIDEO_EXTENSIONS,
+  IMAGE_PATTERN,
+  GIF_PATTERN,
+  VIDEO_PATTERN,
+  REDDIT_IMAGE_DOMAIN,
+  REDDIT_VIDEO_DOMAIN,
+  IMGUR_DOMAIN,
+  YOUTUBE_DOMAINS,
+  GIF_PLATFORMS,
+  GALLERY_URL_PATTERNS,
+  MEDIA_FILENAME_MAX_TITLE_LENGTH,
+  MEDIA_FILENAME_MAX_URL_PART_LENGTH,
+} from './constants';
+import { sanitizeFileName as sanitizeFileNameUtil, isPathSafe } from './utils/file-sanitizer';
 
 export class MediaHandler {
   private app: App;
@@ -14,10 +30,6 @@ export class MediaHandler {
     const url = data.url || '';
     const domain = data.domain || '';
 
-    // Image formats
-    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
-    const videoExtensions = ['.mp4', '.webm', '.mov', '.avi'];
-
     const mediaInfo: MediaInfo = {
       type: 'link',
       mediaType: null,
@@ -31,41 +43,41 @@ export class MediaHandler {
     const urlLower = url.toLowerCase();
 
     // Check platform-specific domains first (before generic file extensions)
-    if (domain.includes('i.redd.it')) {
+    if (domain.includes(REDDIT_IMAGE_DOMAIN)) {
       mediaInfo.type = 'image';
       mediaInfo.mediaType = 'reddit-image';
       mediaInfo.isMedia = true;
       mediaInfo.canEmbed = true;
-    } else if (domain.includes('v.redd.it')) {
+    } else if (domain.includes(REDDIT_VIDEO_DOMAIN)) {
       mediaInfo.type = 'video';
       mediaInfo.mediaType = 'reddit-video';
       mediaInfo.isMedia = true;
       mediaInfo.canEmbed = false; // Reddit videos need special handling
     }
     // Popular media platforms
-    else if (domain.includes('imgur.com')) {
+    else if (domain.includes(IMGUR_DOMAIN)) {
       mediaInfo.type = 'image';
       mediaInfo.mediaType = 'imgur';
       mediaInfo.isMedia = true;
       mediaInfo.canEmbed = true;
-    } else if (domain.includes('youtube.com') || domain.includes('youtu.be')) {
+    } else if (YOUTUBE_DOMAINS.some(ytDomain => domain.includes(ytDomain))) {
       mediaInfo.type = 'video';
       mediaInfo.mediaType = 'youtube';
       mediaInfo.isMedia = true;
       mediaInfo.canEmbed = false;
-    } else if (domain.includes('gfycat.com') || domain.includes('redgifs.com')) {
+    } else if (GIF_PLATFORMS.some(gifPlatform => domain.includes(gifPlatform))) {
       mediaInfo.type = 'gif';
       mediaInfo.mediaType = 'gif-platform';
       mediaInfo.isMedia = true;
       mediaInfo.canEmbed = false;
     }
     // Fallback: check for direct file extensions when no platform match
-    else if (imageExtensions.some(ext => urlLower.includes(ext))) {
+    else if (IMAGE_EXTENSIONS.some(ext => urlLower.includes(ext))) {
       mediaInfo.type = 'image';
       mediaInfo.mediaType = 'image';
       mediaInfo.isMedia = true;
       mediaInfo.canEmbed = true;
-    } else if (videoExtensions.some(ext => urlLower.includes(ext))) {
+    } else if (VIDEO_EXTENSIONS.some(ext => urlLower.includes(ext))) {
       mediaInfo.type = 'video';
       mediaInfo.mediaType = 'video';
       mediaInfo.isMedia = true;
@@ -99,13 +111,13 @@ export class MediaHandler {
       default: {
         // For other media types, check file extension
         const urlLower = url.toLowerCase();
-        if (this.settings.downloadImages && /\.(jpg|jpeg|png|webp|bmp|svg)(\?|$)/i.test(urlLower)) {
+        if (this.settings.downloadImages && IMAGE_PATTERN.test(urlLower)) {
           return true;
         }
-        if (this.settings.downloadGifs && /\.gif(\?|$)/i.test(urlLower)) {
+        if (this.settings.downloadGifs && GIF_PATTERN.test(urlLower)) {
           return true;
         }
-        if (this.settings.downloadVideos && /\.(mp4|webm|mov|avi|mkv)(\?|$)/i.test(urlLower)) {
+        if (this.settings.downloadVideos && VIDEO_PATTERN.test(urlLower)) {
           return true;
         }
         return false;
@@ -115,23 +127,7 @@ export class MediaHandler {
 
   private isGalleryUrl(url: string): boolean {
     const urlLower = url.toLowerCase();
-
-    // Imgur galleries and albums
-    if (urlLower.includes('imgur.com/gallery/') || urlLower.includes('imgur.com/a/')) {
-      return true;
-    }
-
-    // Reddit galleries
-    if (urlLower.includes('reddit.com/gallery/')) {
-      return true;
-    }
-
-    // Other common gallery patterns
-    if (urlLower.includes('/gallery/') || urlLower.includes('/album/')) {
-      return true;
-    }
-
-    return false;
+    return GALLERY_URL_PATTERNS.some(pattern => urlLower.includes(pattern));
   }
 
   generateMediaFilename(data: RedditItemData, url: string, mediaInfo: MediaInfo): string {
@@ -165,15 +161,23 @@ export class MediaHandler {
       }
     }
 
+    const title = data.title || 'reddit-media';
+
+    // Validate path safety
+    if (!isPathSafe(title)) {
+      console.warn(`Unsafe media filename detected: ${title}`);
+      return `media-${data.id || 'unknown'}.${extension}`;
+    }
+
     // Create a base filename from the Reddit post title
-    const baseTitle = this.sanitizeFileName(data.title || 'reddit-media');
-    const shortTitle = baseTitle.substring(0, 50); // Keep filename reasonable length
+    const baseTitle = sanitizeFileNameUtil(title);
+    const shortTitle = baseTitle.substring(0, MEDIA_FILENAME_MAX_TITLE_LENGTH);
 
     // Add Reddit ID for uniqueness
     const redditId = data.id || 'unknown';
 
     // Also include last part of URL for uniqueness (sanitized)
-    const urlPart = this.sanitizeFileName(lastPart).substring(0, 20);
+    const urlPart = sanitizeFileNameUtil(lastPart).substring(0, MEDIA_FILENAME_MAX_URL_PART_LENGTH);
 
     return `${shortTitle}-${redditId}-${urlPart}.${extension}`;
   }
@@ -228,88 +232,5 @@ export class MediaHandler {
       if (match) return match[1];
     }
     return null;
-  }
-
-  private sanitizeFileName(name: string): string {
-    if (!name || name.trim() === '') {
-      return 'Untitled';
-    }
-
-    // Start with the original name
-    let sanitized = name;
-
-    // Remove/replace characters that are invalid on Windows, macOS, and Linux
-    sanitized = sanitized
-      // Windows forbidden characters: < > : " | ? * \ /
-      .replace(/[<>:"/\\|?*]/g, '-')
-      // Control characters (0-31) and DEL (127)
-      // eslint-disable-next-line no-control-regex -- Need to match control characters for sanitization
-      .replace(/[\u0000-\u001F\u007F]/g, '')
-      // Zero-width characters and other problematic Unicode
-      .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
-      // Multiple spaces to single space
-      .replace(/\s+/g, ' ')
-      // Remove leading/trailing spaces and dots (Windows issue)
-      .replace(/^[\s.]+|[\s.]+$/g, '');
-
-    // Handle Windows reserved names (case insensitive)
-    const windowsReserved = [
-      'CON',
-      'PRN',
-      'AUX',
-      'NUL',
-      'COM1',
-      'COM2',
-      'COM3',
-      'COM4',
-      'COM5',
-      'COM6',
-      'COM7',
-      'COM8',
-      'COM9',
-      'LPT1',
-      'LPT2',
-      'LPT3',
-      'LPT4',
-      'LPT5',
-      'LPT6',
-      'LPT7',
-      'LPT8',
-      'LPT9',
-    ];
-
-    if (windowsReserved.includes(sanitized.toUpperCase())) {
-      sanitized = sanitized + '_file';
-    }
-
-    // Ensure filename isn't empty after sanitization
-    if (sanitized.length === 0) {
-      sanitized = 'Untitled';
-    }
-
-    // Limit filename length (leaving room for extension and counter)
-    // Windows has 255 character limit, but we'll be conservative
-    const maxLength = 200;
-    if (sanitized.length > maxLength) {
-      // Try to cut at word boundary
-      const truncated = sanitized.substring(0, maxLength);
-      const lastSpace = truncated.lastIndexOf(' ');
-      if (lastSpace > maxLength * 0.7) {
-        // Only if we're not cutting too much
-        sanitized = truncated.substring(0, lastSpace);
-      } else {
-        sanitized = truncated;
-      }
-    }
-
-    // Final trim in case we introduced trailing spaces
-    sanitized = sanitized.trim();
-
-    // One more check for empty result
-    if (sanitized.length === 0) {
-      sanitized = 'Untitled';
-    }
-
-    return sanitized;
   }
 }

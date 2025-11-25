@@ -1,11 +1,19 @@
 import { Notice, Plugin } from 'obsidian';
 import { RedditSavedSettings, ImportResult, RedditItem } from './types';
-import { DEFAULT_SETTINGS } from './constants';
+import {
+  DEFAULT_SETTINGS,
+  REDDIT_ITEM_TYPE_COMMENT,
+  MSG_AUTH_REQUIRED,
+  MSG_NO_POSTS_FOUND,
+  MSG_FETCHING_POSTS,
+  MSG_RESCAN_VAULT,
+} from './constants';
 import { RedditAuth } from './auth';
 import { RedditApiClient } from './api-client';
 import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
+import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
 
 export default class RedditSavedPlugin extends Plugin {
   settings: RedditSavedSettings;
@@ -75,7 +83,7 @@ export default class RedditSavedPlugin extends Plugin {
 
   async fetchSavedPosts() {
     if (!this.auth.isAuthenticated()) {
-      new Notice('Please authenticate with Reddit first');
+      new Notice(MSG_AUTH_REQUIRED);
       await this.auth.initiateOAuth();
       return;
     }
@@ -83,12 +91,12 @@ export default class RedditSavedPlugin extends Plugin {
     try {
       await this.auth.ensureValidToken();
 
-      new Notice('Fetching saved posts...');
+      new Notice(MSG_FETCHING_POSTS);
 
       const savedItems = await this.apiClient.fetchAllSaved();
 
       if (savedItems.length === 0) {
-        new Notice('No saved posts found');
+        new Notice(MSG_NO_POSTS_FOUND);
         return;
       }
 
@@ -114,7 +122,8 @@ export default class RedditSavedPlugin extends Plugin {
       }
     } catch (error) {
       console.error('Error fetching saved posts:', error);
-      new Notice(`Error: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Error: ${errorMessage}`);
     }
   }
 
@@ -139,7 +148,7 @@ export default class RedditSavedPlugin extends Plugin {
   }
 
   private async rescanImportedIds() {
-    new Notice('Rescanning vault for Reddit posts...');
+    new Notice(MSG_RESCAN_VAULT);
 
     const existingIds = this.scanExistingRedditIds();
 
@@ -176,11 +185,18 @@ export default class RedditSavedPlugin extends Plugin {
         continue;
       }
 
-      const isComment = item.kind === 't1';
+      const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
 
-      const fileName = this.sanitizeFileName(
-        isComment ? `Comment - ${data.link_title || 'Unknown'}` : data.title!
-      );
+      const rawFileName = isComment ? `Comment - ${data.link_title || 'Unknown'}` : data.title!;
+
+      // Validate path safety before sanitizing
+      if (!isPathSafe(rawFileName)) {
+        console.warn(`Skipping potentially unsafe filename: ${rawFileName}`);
+        skippedCount++;
+        continue;
+      }
+
+      const fileName = sanitizeFileName(rawFileName);
 
       // Generate unique filename if it already exists
       let filePath = `${this.settings.saveLocation}/${fileName}.md`;
@@ -206,88 +222,5 @@ export default class RedditSavedPlugin extends Plugin {
 
     // Return counts for better user feedback
     return { imported: importedCount, skipped: skippedCount };
-  }
-
-  private sanitizeFileName(name: string): string {
-    if (!name || name.trim() === '') {
-      return 'Untitled';
-    }
-
-    // Start with the original name
-    let sanitized = name;
-
-    // Remove/replace characters that are invalid on Windows, macOS, and Linux
-    sanitized = sanitized
-      // Windows forbidden characters: < > : " | ? * \ /
-      .replace(/[<>:"/\\|?*]/g, '-')
-      // Control characters (0-31) and DEL (127)
-      // eslint-disable-next-line no-control-regex -- Need to match control characters for sanitization
-      .replace(/[\u0000-\u001F\u007F]/g, '')
-      // Zero-width characters and other problematic Unicode
-      .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')
-      // Multiple spaces to single space
-      .replace(/\s+/g, ' ')
-      // Remove leading/trailing spaces and dots (Windows issue)
-      .replace(/^[\s.]+|[\s.]+$/g, '');
-
-    // Handle Windows reserved names (case insensitive)
-    const windowsReserved = [
-      'CON',
-      'PRN',
-      'AUX',
-      'NUL',
-      'COM1',
-      'COM2',
-      'COM3',
-      'COM4',
-      'COM5',
-      'COM6',
-      'COM7',
-      'COM8',
-      'COM9',
-      'LPT1',
-      'LPT2',
-      'LPT3',
-      'LPT4',
-      'LPT5',
-      'LPT6',
-      'LPT7',
-      'LPT8',
-      'LPT9',
-    ];
-
-    if (windowsReserved.includes(sanitized.toUpperCase())) {
-      sanitized = sanitized + '_file';
-    }
-
-    // Ensure filename isn't empty after sanitization
-    if (sanitized.length === 0) {
-      sanitized = 'Untitled';
-    }
-
-    // Limit filename length (leaving room for extension and counter)
-    // Windows has 255 character limit, but we'll be conservative
-    const maxLength = 200;
-    if (sanitized.length > maxLength) {
-      // Try to cut at word boundary
-      const truncated = sanitized.substring(0, maxLength);
-      const lastSpace = truncated.lastIndexOf(' ');
-      if (lastSpace > maxLength * 0.7) {
-        // Only if we're not cutting too much
-        sanitized = truncated.substring(0, lastSpace);
-      } else {
-        sanitized = truncated;
-      }
-    }
-
-    // Final trim in case we introduced trailing spaces
-    sanitized = sanitized.trim();
-
-    // One more check for empty result
-    if (sanitized.length === 0) {
-      sanitized = 'Untitled';
-    }
-
-    return sanitized;
   }
 }

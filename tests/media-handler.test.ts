@@ -1,6 +1,7 @@
 import { MediaHandler } from '../src/media-handler';
 import { RedditSavedSettings, RedditItemData } from '../src/types';
 import { App } from 'obsidian';
+import { sanitizeFileName } from '../src/utils/file-sanitizer';
 
 describe('MediaHandler', () => {
   let handler: MediaHandler;
@@ -241,9 +242,6 @@ describe('MediaHandler', () => {
 
   describe('sanitizeFileName', () => {
     it('should sanitize filenames', () => {
-      const sanitizeFileName = (handler as { sanitizeFileName: (filename: string) => string })
-        .sanitizeFileName;
-
       expect(sanitizeFileName('Test: File? Name*')).toBe('Test- File- Name-');
       expect(sanitizeFileName('Normal filename')).toBe('Normal filename');
       expect(sanitizeFileName('')).toBe('Untitled');
@@ -251,9 +249,6 @@ describe('MediaHandler', () => {
     });
 
     it('should handle Windows reserved names', () => {
-      const sanitizeFileName = (handler as { sanitizeFileName: (filename: string) => string })
-        .sanitizeFileName;
-
       expect(sanitizeFileName('CON')).toBe('CON_file');
       expect(sanitizeFileName('PRN')).toBe('PRN_file');
       expect(sanitizeFileName('con')).toBe('con_file'); // Case insensitive
