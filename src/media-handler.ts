@@ -243,7 +243,7 @@ export class MediaHandler {
       // Windows forbidden characters: < > : " | ? * \ /
       .replace(/[<>:"/\\|?*]/g, '-')
       // Control characters (0-31) and DEL (127)
-      // eslint-disable-next-line no-control-regex
+      // eslint-disable-next-line no-control-regex -- Need to match control characters for sanitization
       .replace(/[\u0000-\u001F\u007F]/g, '')
       // Zero-width characters and other problematic Unicode
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')

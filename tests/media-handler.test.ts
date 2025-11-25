@@ -437,7 +437,7 @@ describe('MediaHandler', () => {
       );
 
       // Special characters should be sanitized
-      expect(filename).not.toMatch(/[<>:"\/\\|?*]/);
+      expect(filename).not.toMatch(/[<>:"/\\|?*]/);
       expect(filename).toContain('Title-with-special--chars------special');
     });
   });

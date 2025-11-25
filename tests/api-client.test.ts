@@ -193,9 +193,9 @@ describe('RedditApiClient', () => {
 
     it('should handle pagination', async () => {
       // Mock setTimeout to resolve immediately
-      jest.spyOn(global, 'setTimeout').mockImplementation((cb: any) => {
+      jest.spyOn(global, 'setTimeout').mockImplementation((cb: () => void) => {
         cb();
-        return null as any;
+        return 0 as unknown as NodeJS.Timeout;
       });
 
       // Set fetchLimit to allow for multiple pages

@@ -63,7 +63,13 @@ describe('RedditSavedSettingTab', () => {
 
   describe('display', () => {
     it('should create settings interface', () => {
-      const mockContainer = document.createElement('div') as any;
+      const mockContainer = document.createElement('div') as HTMLElement & {
+        empty: jest.Mock;
+        createEl: jest.Mock;
+        createDiv: jest.Mock;
+        createSpan: jest.Mock;
+        setCssProps: jest.Mock;
+      };
       mockContainer.empty = jest.fn();
       mockContainer.createEl = jest.fn().mockReturnValue(mockContainer);
       mockContainer.createDiv = jest.fn().mockReturnValue(mockContainer);

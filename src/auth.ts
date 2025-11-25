@@ -25,7 +25,7 @@ export class RedditAuth {
     }
 
     if (!this.settings.clientId || !this.settings.clientSecret) {
-      new Notice('Please enter your Client ID and Client Secret in plugin settings first');
+      new Notice('Please enter your client ID and client secret in plugin settings first');
       return;
     }
 
@@ -171,7 +171,7 @@ export class RedditAuth {
                         `);
 
               // Process the authorization code
-              this.handleOAuthCallback(code, state, expectedState);
+              void this.handleOAuthCallback(code, state, expectedState);
             } catch (err) {
               console.error('OAuth server error:', err);
               res.writeHead(500, { 'Content-Type': 'text/html' });
@@ -200,7 +200,7 @@ export class RedditAuth {
               )
             );
           } else {
-            reject(err);
+            reject(new Error(`OAuth server error: ${err.code}`));
           }
         });
 
@@ -231,7 +231,7 @@ export class RedditAuth {
           5 * 60 * 1000
         ); // 5 minutes
       } catch (error) {
-        reject(error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
   }
@@ -243,7 +243,7 @@ export class RedditAuth {
   ): Promise<void> {
     try {
       // Debug state comparison
-      console.log('State validation:', {
+      console.debug('State validation:', {
         receivedState,
         expectedState,
         match: receivedState === expectedState,
@@ -277,15 +277,17 @@ export class RedditAuth {
     const modal = new AuthCodeModal(
       this.app,
       // Success callback
-      async (code: string) => {
-        try {
-          await this.handleManualAuthCode(code, state);
-          new Notice('Successfully authenticated with Reddit!');
-        } catch (error) {
-          new Notice(`Failed to authenticate: ${error.message}`);
-        } finally {
-          this.authorizationInProgress = false;
-        }
+      (code: string) => {
+        void (async () => {
+          try {
+            await this.handleManualAuthCode(code, state);
+            new Notice('Successfully authenticated with Reddit!');
+          } catch (error) {
+            new Notice(`Failed to authenticate: ${error.message}`);
+          } finally {
+            this.authorizationInProgress = false;
+          }
+        })();
       },
       // Cancel callback
       () => {
@@ -406,7 +408,7 @@ class AuthCodeModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h2', { text: 'Reddit Authorization' });
+    contentEl.createEl('h2', { text: 'Reddit authorization' });
 
     const instructions = contentEl.createDiv();
     instructions.createEl('p', {
@@ -419,19 +421,20 @@ class AuthCodeModal extends Modal {
     instructions.createEl('p', { text: '4. Paste it below:' });
 
     const inputContainer = contentEl.createDiv();
-    inputContainer.style.margin = '20px 0';
+    inputContainer.setCssProps({ margin: '20px 0' });
 
-    inputContainer.createEl('label', { text: 'Authorization Code:' });
+    inputContainer.createEl('label', { text: 'Authorization code:' });
     this.codeInput = new TextComponent(inputContainer);
-    this.codeInput.inputEl.style.width = '100%';
-    this.codeInput.inputEl.style.margin = '10px 0';
+    this.codeInput.inputEl.setCssProps({ width: '100%', margin: '10px 0' });
     this.codeInput.inputEl.placeholder = 'Paste authorization code here...';
 
     const buttonContainer = contentEl.createDiv();
-    buttonContainer.style.display = 'flex';
-    buttonContainer.style.justifyContent = 'flex-end';
-    buttonContainer.style.gap = '10px';
-    buttonContainer.style.marginTop = '20px';
+    buttonContainer.setCssProps({
+      display: 'flex',
+      justifyContent: 'flex-end',
+      gap: '10px',
+      marginTop: '20px',
+    });
 
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
     cancelButton.onclick = () => {

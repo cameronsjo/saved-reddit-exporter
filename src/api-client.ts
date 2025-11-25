@@ -16,7 +16,7 @@ export class RedditApiClient {
     this.ensureValidToken = ensureValidToken;
   }
 
-  private async handleRateLimit(response: { headers: Record<string, string> }): Promise<number> {
+  private handleRateLimit(response: { headers: Record<string, string> }): number {
     const remaining = parseInt(response.headers['x-ratelimit-remaining'] || '0');
     const reset = parseInt(response.headers['x-ratelimit-reset'] || '0');
     // const _used = response.headers['x-ratelimit-used'] || 'unknown';
@@ -51,7 +51,7 @@ export class RedditApiClient {
         const response = await requestUrl(params);
 
         // Handle rate limiting
-        const delay = await this.handleRateLimit(response);
+        const delay = this.handleRateLimit(response);
         if (delay > 0) {
           await new Promise(resolve => setTimeout(resolve, delay));
         }

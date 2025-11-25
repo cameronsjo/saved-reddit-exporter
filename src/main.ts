@@ -24,7 +24,7 @@ export default class RedditSavedPlugin extends Plugin {
     this.contentFormatter = new ContentFormatter(this.settings, this.mediaHandler);
 
     // Add ribbon icon
-    this.addRibbonIcon('download', 'Fetch Reddit Saved Posts', async () => {
+    this.addRibbonIcon('download', 'Fetch Reddit saved posts', async () => {
       await this.fetchSavedPosts();
     });
 
@@ -118,7 +118,7 @@ export default class RedditSavedPlugin extends Plugin {
     }
   }
 
-  private async scanExistingRedditIds(): Promise<Set<string>> {
+  private scanExistingRedditIds(): Set<string> {
     const existingIds = new Set<string>();
 
     // Scan all markdown files in the vault for Reddit IDs
@@ -141,7 +141,7 @@ export default class RedditSavedPlugin extends Plugin {
   private async rescanImportedIds() {
     new Notice('Rescanning vault for Reddit posts...');
 
-    const existingIds = await this.scanExistingRedditIds();
+    const existingIds = this.scanExistingRedditIds();
 
     // Update the imported IDs list with what's actually in the vault
     this.settings.importedIds = Array.from(existingIds);
@@ -160,7 +160,7 @@ export default class RedditSavedPlugin extends Plugin {
     // Scan for existing Reddit IDs if skip existing is enabled
     let existingIds: Set<string> = new Set();
     if (this.settings.skipExisting) {
-      existingIds = await this.scanExistingRedditIds();
+      existingIds = this.scanExistingRedditIds();
     }
 
     let importedCount = 0;
@@ -221,7 +221,7 @@ export default class RedditSavedPlugin extends Plugin {
       // Windows forbidden characters: < > : " | ? * \ /
       .replace(/[<>:"/\\|?*]/g, '-')
       // Control characters (0-31) and DEL (127)
-      // eslint-disable-next-line no-control-regex
+      // eslint-disable-next-line no-control-regex -- Need to match control characters for sanitization
       .replace(/[\u0000-\u001F\u007F]/g, '')
       // Zero-width characters and other problematic Unicode
       .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '')

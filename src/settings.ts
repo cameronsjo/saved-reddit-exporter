@@ -26,7 +26,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl('h2', { text: 'Reddit Saved Posts Settings' });
+    new Setting(containerEl).setName('Reddit Saved Posts Settings').setHeading();
 
     const setupInstructions = containerEl.createDiv();
 
@@ -40,8 +40,8 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       .setAttr('target', '_blank');
 
     const secondPara = setupInstructions.createEl('p');
-    secondPara.createEl('strong', { text: 'Important:' });
-    secondPara.createSpan({ text: ' Set the redirect URI to ' });
+    secondPara.createEl('strong', { text: 'Important' });
+    secondPara.createSpan({ text: ': Set the redirect URI to ' });
     secondPara.createEl('code', { text: `http://localhost:${this.settings.oauthRedirectPort}` });
 
     new Setting(containerEl)
@@ -58,7 +58,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Client Secret')
+      .setName('Client secret')
       .setDesc('Your Reddit app client secret')
       .addText(text =>
         text
@@ -72,7 +72,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     if (this.settings.username) {
       new Setting(containerEl)
-        .setName('Authenticated User')
+        .setName('Authenticated user')
         .setDesc(`Currently authenticated as: ${this.settings.username}`)
         .addButton(button =>
           button.setButtonText('Re-authenticate').onClick(async () => {
@@ -93,16 +93,18 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
     }
 
-    containerEl.createEl('h3', { text: 'Import Settings' });
+    new Setting(containerEl).setName('Import settings').setHeading();
 
     // Rate limiting info
     const rateLimitInfo = containerEl.createDiv();
-    rateLimitInfo.style.backgroundColor = 'var(--background-secondary)';
-    rateLimitInfo.style.padding = '10px';
-    rateLimitInfo.style.borderRadius = '4px';
-    rateLimitInfo.style.marginBottom = '15px';
+    rateLimitInfo.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '10px',
+      borderRadius: '4px',
+      marginBottom: '15px',
+    });
 
-    rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API Limits:' });
+    rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API limits' });
     rateLimitInfo.createEl('br');
     rateLimitInfo.createSpan({ text: '• Maximum 1,000 saved items can be fetched' });
     rateLimitInfo.createEl('br');
@@ -113,7 +115,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     rateLimitInfo.createSpan({ text: '• Progress will be shown during import' });
 
     new Setting(containerEl)
-      .setName('Save Location')
+      .setName('Save location')
       .setDesc('Folder where Reddit posts will be saved')
       .addText(text =>
         text
@@ -126,7 +128,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Fetch Limit')
+      .setName('Fetch limit')
       .setDesc(
         `Maximum saved posts to fetch (Reddit's hard limit: ${REDDIT_MAX_ITEMS}. Higher numbers may take longer due to rate limiting)`
       )
@@ -148,7 +150,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Skip Existing')
+      .setName('Skip existing')
       .setDesc('Skip posts that have already been imported (checks by Reddit ID in frontmatter)')
       .addToggle(toggle =>
         toggle.setValue(this.settings.skipExisting).onChange(async value => {
@@ -168,10 +170,10 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     // Advanced Settings Section
-    containerEl.createEl('h3', { text: 'Advanced Settings' });
+    new Setting(containerEl).setName('Advanced settings').setHeading();
 
     new Setting(containerEl)
-      .setName('Show Advanced Settings')
+      .setName('Show advanced settings')
       .setDesc('Toggle advanced configuration options')
       .addToggle(toggle =>
         toggle.setValue(this.settings.showAdvancedSettings).onChange(async value => {
@@ -183,7 +185,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     if (this.settings.showAdvancedSettings) {
       new Setting(containerEl)
-        .setName('OAuth Redirect Port')
+        .setName('OAuth redirect port')
         .setDesc('Port for OAuth callback (must match Reddit app redirect URI)')
         .addText(text =>
           text
@@ -200,10 +202,10 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
 
       // Media Download Settings
-      containerEl.createEl('h4', { text: 'Media Download Options' });
+      new Setting(containerEl).setName('Media download options').setHeading();
 
       new Setting(containerEl)
-        .setName('Media Folder')
+        .setName('Media folder')
         .setDesc(
           'Folder where downloaded media files will be saved (relative to vault root, separate from posts folder)'
         )
@@ -218,7 +220,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
 
       new Setting(containerEl)
-        .setName('Download Images')
+        .setName('Download images')
         .setDesc('Automatically download linked images (PNG, JPG, WEBP, etc.)')
         .addToggle(toggle =>
           toggle.setValue(this.settings.downloadImages).onChange(async value => {
@@ -238,7 +240,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
 
       new Setting(containerEl)
-        .setName('Download Videos')
+        .setName('Download videos')
         .setDesc('Automatically download video files (MP4, WEBM, etc.)')
         .addToggle(toggle =>
           toggle.setValue(this.settings.downloadVideos).onChange(async value => {
