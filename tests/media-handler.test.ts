@@ -30,6 +30,10 @@ describe('MediaHandler', () => {
       useTemplater: false,
       postTemplatePath: '',
       commentTemplatePath: '',
+      fetchCommentContext: false,
+      commentContextDepth: 3,
+      includeCommentReplies: false,
+      commentReplyDepth: 2,
     };
 
     mockApp = new App();

@@ -1,6 +1,6 @@
 import { App, TFile, normalizePath } from 'obsidian';
 import { RedditSavedSettings, RedditItemData, MediaInfo, TemplaterContext } from './types';
-import { TEMPLATER_PLUGIN_ID } from './constants';
+import { TEMPLATER_PLUGIN_ID, REDDIT_ITEM_TYPE_COMMENT } from './constants';
 
 // Type definitions for Templater plugin API
 interface TemplaterPlugin {
@@ -78,6 +78,12 @@ export class TemplaterHandler {
     }
     tags.push(isComment ? '#reddit-comment' : '#reddit-post');
 
+    // Determine parent type for comments
+    let parentType: 'post' | 'comment' | undefined;
+    if (isComment && data.parent_id) {
+      parentType = data.parent_id.startsWith(REDDIT_ITEM_TYPE_COMMENT) ? 'comment' : 'post';
+    }
+
     return {
       item: data,
       isComment,
@@ -90,6 +96,13 @@ export class TemplaterHandler {
       subredditUrl: `https://reddit.com/r/${data.subreddit}`,
       authorUrl: `https://reddit.com/u/${data.author}`,
       tags,
+      // Comment tree context
+      parentType,
+      depth: data.depth,
+      parentComments: data.parent_comments,
+      childComments: data.child_comments,
+      hasParentContext: !!(data.parent_comments && data.parent_comments.length > 0),
+      hasReplies: !!(data.child_comments && data.child_comments.length > 0),
     };
   }
 
@@ -159,6 +172,20 @@ export class TemplaterHandler {
       'reddit.linkTitle': item.link_title || '',
       'reddit.linkPermalink': item.link_permalink ? `https://reddit.com${item.link_permalink}` : '',
       'reddit.isSubmitter': String(item.is_submitter || false),
+
+      // Comment tree fields
+      'reddit.parentId': item.parent_id || '',
+      'reddit.linkId': item.link_id || '',
+      'reddit.depth': String(item.depth ?? 0),
+      'reddit.parentType': context.parentType || '',
+      'reddit.distinguished': item.distinguished || '',
+      'reddit.edited': item.edited ? String(item.edited) : 'false',
+      'reddit.archived': String(item.archived || false),
+      'reddit.locked': String(item.locked || false),
+      'reddit.hasParentContext': String(context.hasParentContext || false),
+      'reddit.hasReplies': String(context.hasReplies || false),
+      'reddit.parentContextCount': String(context.parentComments?.length || 0),
+      'reddit.replyCount': String(context.childComments?.length || 0),
 
       // Computed fields
       'reddit.isComment': String(isComment),

@@ -35,6 +35,10 @@ describe('RedditApiClient', () => {
       useTemplater: false,
       postTemplatePath: '',
       commentTemplatePath: '',
+      fetchCommentContext: false,
+      commentContextDepth: 3,
+      includeCommentReplies: false,
+      commentReplyDepth: 2,
     };
 
     mockEnsureValidToken = jest.fn().mockResolvedValue(undefined);
@@ -313,6 +317,207 @@ describe('RedditApiClient', () => {
       const result = await client.fetchAllSaved();
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual(mockItems[0]);
+    });
+  });
+
+  describe('fetchCommentWithContext', () => {
+    it('should fetch comment with parent context successfully', async () => {
+      const mockCommentPermalink = '/r/test/comments/post123/title/comment456/';
+      const mockParentComment = {
+        kind: 't1' as const,
+        data: {
+          id: 'parent123',
+          name: 't1_parent123',
+          author: 'parentuser',
+          body: 'Parent comment body',
+          score: 50,
+          subreddit: 'test',
+          permalink: '/r/test/comments/post123/title/parent123/',
+          created_utc: 1234567880,
+          replies: {
+            kind: 'Listing',
+            data: {
+              children: [
+                {
+                  kind: 't1' as const,
+                  data: {
+                    id: 'comment456',
+                    name: 't1_comment456',
+                    author: 'testuser',
+                    body: 'Target comment body',
+                    score: 25,
+                    subreddit: 'test',
+                    permalink: '/r/test/comments/post123/title/comment456/',
+                    created_utc: 1234567890,
+                    replies: '',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      const mockResponse = {
+        json: [
+          { data: { children: [] } }, // Post listing
+          { data: { children: [mockParentComment] } }, // Comments listing
+        ],
+        headers: { 'x-ratelimit-remaining': '100' },
+      };
+
+      mockRequestUrl.mockResolvedValue(mockResponse);
+
+      const result = await client.fetchCommentWithContext(mockCommentPermalink, 3);
+
+      expect(mockEnsureValidToken).toHaveBeenCalled();
+      expect(mockRequestUrl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          url: expect.stringContaining(mockCommentPermalink),
+          method: 'GET',
+        })
+      );
+      expect(result).not.toBeNull();
+      expect(result?.parent_comments).toHaveLength(1);
+      expect(result?.parent_comments?.[0].author).toBe('parentuser');
+    });
+
+    it('should return null when no comment data found', async () => {
+      const mockResponse = {
+        json: [{ data: { children: [] } }, { data: { children: [] } }],
+        headers: { 'x-ratelimit-remaining': '100' },
+      };
+
+      mockRequestUrl.mockResolvedValue(mockResponse);
+
+      const result = await client.fetchCommentWithContext('/r/test/comments/post/title/comment/');
+
+      expect(result).toBeNull();
+    });
+
+    it('should handle API errors gracefully', async () => {
+      mockRequestUrl.mockRejectedValue(new Error('API Error'));
+
+      const result = await client.fetchCommentWithContext('/r/test/comments/post/title/comment/');
+
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('fetchCommentReplies', () => {
+    it('should fetch comment replies successfully', async () => {
+      const mockTargetComment = {
+        kind: 't1' as const,
+        data: {
+          id: 'comment123',
+          name: 't1_comment123',
+          author: 'testuser',
+          body: 'Main comment',
+          score: 100,
+          subreddit: 'test',
+          permalink: '/r/test/comments/post123/title/comment123/',
+          created_utc: 1234567890,
+          replies: {
+            kind: 'Listing',
+            data: {
+              children: [
+                {
+                  kind: 't1' as const,
+                  data: {
+                    id: 'reply1',
+                    name: 't1_reply1',
+                    author: 'replier1',
+                    body: 'First reply',
+                    score: 10,
+                    subreddit: 'test',
+                    permalink: '/r/test/comments/post123/title/reply1/',
+                    created_utc: 1234567900,
+                    replies: '',
+                  },
+                },
+                {
+                  kind: 't1' as const,
+                  data: {
+                    id: 'reply2',
+                    name: 't1_reply2',
+                    author: 'replier2',
+                    body: 'Second reply',
+                    score: 5,
+                    subreddit: 'test',
+                    permalink: '/r/test/comments/post123/title/reply2/',
+                    created_utc: 1234567910,
+                    replies: '',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+
+      const mockResponse = {
+        json: [
+          { data: { children: [] } }, // Post listing
+          { data: { children: [mockTargetComment] } }, // Comments listing
+        ],
+        headers: { 'x-ratelimit-remaining': '100' },
+      };
+
+      mockRequestUrl.mockResolvedValue(mockResponse);
+
+      const result = await client.fetchCommentReplies('/r/test/comments/post123/title/comment123/');
+
+      expect(result).toHaveLength(2);
+      expect(result[0].author).toBe('replier1');
+      expect(result[1].author).toBe('replier2');
+    });
+
+    it('should return empty array when no replies', async () => {
+      const mockTargetComment = {
+        kind: 't1' as const,
+        data: {
+          id: 'comment123',
+          name: 't1_comment123',
+          author: 'testuser',
+          body: 'Main comment',
+          score: 100,
+          subreddit: 'test',
+          permalink: '/r/test/comments/post123/title/comment123/',
+          created_utc: 1234567890,
+          replies: '',
+        },
+      };
+
+      const mockResponse = {
+        json: [{ data: { children: [] } }, { data: { children: [mockTargetComment] } }],
+        headers: { 'x-ratelimit-remaining': '100' },
+      };
+
+      mockRequestUrl.mockResolvedValue(mockResponse);
+
+      const result = await client.fetchCommentReplies('/r/test/comments/post123/title/comment123/');
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  describe('getParentType', () => {
+    it('should return "comment" for comment parent IDs', () => {
+      expect(RedditApiClient.getParentType('t1_abc123')).toBe('comment');
+    });
+
+    it('should return "post" for post parent IDs', () => {
+      expect(RedditApiClient.getParentType('t3_abc123')).toBe('post');
+    });
+  });
+
+  describe('extractIdFromFullname', () => {
+    it('should extract ID from comment fullname', () => {
+      expect(RedditApiClient.extractIdFromFullname('t1_abc123')).toBe('abc123');
+    });
+
+    it('should extract ID from post fullname', () => {
+      expect(RedditApiClient.extractIdFromFullname('t3_xyz789')).toBe('xyz789');
     });
   });
 

@@ -1,5 +1,6 @@
 import { RedditItemData, MediaInfo, RedditSavedSettings } from './types';
 import { MediaHandler } from './media-handler';
+import { RedditApiClient } from './api-client';
 
 export class ContentFormatter {
   private settings: RedditSavedSettings;
@@ -56,18 +57,63 @@ export class ContentFormatter {
       content += `post_title: "${(data.link_title || '').replace(/"/g, '\\"')}"\n`;
       content += `score: ${data.score}\n`;
       content += `is_submitter: ${data.is_submitter || false}\n`;
+
+      // Add comment tree metadata
+      if (data.parent_id) {
+        content += `parent_id: ${data.parent_id}\n`;
+        content += `parent_type: ${RedditApiClient.getParentType(data.parent_id)}\n`;
+      }
+      if (data.link_id) {
+        content += `link_id: ${data.link_id}\n`;
+      }
+      if (typeof data.depth === 'number') {
+        content += `depth: ${data.depth}\n`;
+      }
+      if (data.distinguished) {
+        content += `distinguished: ${data.distinguished}\n`;
+      }
+      if (data.edited && data.edited !== false) {
+        const editedTime =
+          typeof data.edited === 'number' ? new Date(data.edited * 1000).toISOString() : 'true';
+        content += `edited: ${editedTime}\n`;
+      }
+      if (data.archived) {
+        content += `archived: true\n`;
+      }
+      if (data.locked) {
+        content += `locked: true\n`;
+      }
+      // Track context presence
+      if (data.parent_comments && data.parent_comments.length > 0) {
+        content += `has_parent_context: true\n`;
+        content += `parent_context_count: ${data.parent_comments.length}\n`;
+      }
+      if (data.child_comments && data.child_comments.length > 0) {
+        content += `has_replies: true\n`;
+        content += `reply_count: ${data.child_comments.length}\n`;
+      }
     }
 
     content += `---\n\n`;
 
     if (isComment) {
       content += this.formatCommentHeader(data);
+
+      // Add parent context if available
+      if (data.parent_comments && data.parent_comments.length > 0) {
+        content += this.formatParentContext(data.parent_comments);
+      }
     } else {
       content += await this.formatPostHeader(data, mediaInfo);
     }
 
     if (data.selftext || data.body) {
       content += this.convertRedditMarkdown(data.selftext || data.body || '');
+    }
+
+    // Add replies section if available
+    if (isComment && data.child_comments && data.child_comments.length > 0) {
+      content += this.formatReplies(data.child_comments);
     }
 
     content += this.formatFooter(data, isComment);
@@ -108,12 +154,120 @@ export class ContentFormatter {
     if (data.is_submitter) {
       content += `👑 **OP** `;
     }
-    content += `• ⬆️ ${data.score}\n\n`;
+    if (data.distinguished) {
+      const badge = data.distinguished === 'moderator' ? '🛡️ **MOD**' : '⭐ **ADMIN**';
+      content += `${badge} `;
+    }
+    content += `• ⬆️ ${data.score}`;
+    if (typeof data.depth === 'number') {
+      content += ` • 📊 Depth: ${data.depth}`;
+    }
+    content += `\n\n`;
 
     content += `# 💬 Comment on: ${data.link_title || 'Unknown Post'}\n\n`;
     content += `> 📝 [View original post](https://reddit.com${data.link_permalink || ''})\n\n`;
 
+    // Show parent type indicator
+    if (data.parent_id) {
+      const parentType = RedditApiClient.getParentType(data.parent_id);
+      if (parentType === 'comment') {
+        content += `> ↩️ *This is a reply to another comment*\n\n`;
+      } else {
+        content += `> 💬 *This is a top-level comment on the post*\n\n`;
+      }
+    }
+
     return content;
+  }
+
+  /**
+   * Format parent comment context as a quoted thread
+   */
+  private formatParentContext(parentComments: RedditItemData[]): string {
+    if (!parentComments || parentComments.length === 0) {
+      return '';
+    }
+
+    let content = '## 📜 Parent Context\n\n';
+    content += '*The conversation leading to this comment:*\n\n';
+
+    // Show parent comments in order (oldest first)
+    for (let i = 0; i < parentComments.length; i++) {
+      const parent = parentComments[i];
+      const indent = '> '.repeat(i + 1);
+
+      content += `${indent}**u/${parent.author}**`;
+      if (parent.is_submitter) {
+        content += ' 👑 OP';
+      }
+      if (parent.distinguished) {
+        content += parent.distinguished === 'moderator' ? ' 🛡️ MOD' : ' ⭐ ADMIN';
+      }
+      content += ` • ⬆️ ${parent.score}\n`;
+
+      // Add a truncated version of the comment body
+      const body = this.truncateText(parent.body || '', 300);
+      const bodyLines = body.split('\n');
+      for (const line of bodyLines) {
+        content += `${indent}${line}\n`;
+      }
+      content += '\n';
+    }
+
+    content += '---\n\n';
+    content += '## 💬 Your Saved Comment\n\n';
+
+    return content;
+  }
+
+  /**
+   * Format replies to the comment
+   */
+  private formatReplies(childComments: RedditItemData[]): string {
+    if (!childComments || childComments.length === 0) {
+      return '';
+    }
+
+    let content = '\n\n---\n\n';
+    content += `## 💬 Replies (${childComments.length})\n\n`;
+
+    for (const reply of childComments) {
+      const indent = '> '.repeat((reply.depth || 0) + 1);
+
+      content += `${indent}**u/${reply.author}**`;
+      if (reply.is_submitter) {
+        content += ' 👑 OP';
+      }
+      if (reply.distinguished) {
+        content += reply.distinguished === 'moderator' ? ' 🛡️ MOD' : ' ⭐ ADMIN';
+      }
+      content += ` • ⬆️ ${reply.score}\n`;
+
+      // Add comment body
+      const body = this.convertRedditMarkdown(reply.body || '');
+      const bodyLines = body.split('\n');
+      for (const line of bodyLines) {
+        content += `${indent}${line}\n`;
+      }
+      content += '\n';
+    }
+
+    return content;
+  }
+
+  /**
+   * Truncate text to a maximum length, adding ellipsis if truncated
+   */
+  private truncateText(text: string, maxLength: number): string {
+    if (!text || text.length <= maxLength) {
+      return text;
+    }
+
+    // Find the last space before maxLength to avoid cutting words
+    const truncateAt = text.lastIndexOf(' ', maxLength);
+    const cutPoint = truncateAt > 0 ? truncateAt : maxLength;
+
+    return text.substring(0, cutPoint) + '...';
   }
 
   private async formatMediaContent(data: RedditItemData, mediaInfo: MediaInfo): Promise<string> {

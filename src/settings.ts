@@ -1,5 +1,6 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import { RedditSavedSettings } from './types';
+import { COMMENT_CONTEXT_MAX, COMMENT_MAX_DEPTH } from './constants';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 
@@ -293,6 +294,97 @@ export class RedditSavedSettingTab extends PluginSettingTab {
           text: 'Templater syntax (<% %>) can also be used alongside Reddit variables.',
         });
       }
+
+      // Comment Context Settings
+      new Setting(containerEl).setName('Comment context options').setHeading();
+
+      new Setting(containerEl)
+        .setName('Fetch comment context')
+        .setDesc(
+          'Fetch parent comments to show the conversation leading to saved comments (requires additional API calls)'
+        )
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.fetchCommentContext).onChange(async value => {
+            this.settings.fetchCommentContext = value;
+            await this.saveSettings();
+            this.display();
+          })
+        );
+
+      if (this.settings.fetchCommentContext) {
+        new Setting(containerEl)
+          .setName('Context depth')
+          .setDesc(
+            `How many parent comments to fetch (1-${COMMENT_CONTEXT_MAX}). Higher values show more conversation context.`
+          )
+          .addSlider(slider =>
+            slider
+              .setLimits(1, COMMENT_CONTEXT_MAX, 1)
+              .setValue(this.settings.commentContextDepth)
+              .setDynamicTooltip()
+              .onChange(async value => {
+                this.settings.commentContextDepth = value;
+                await this.saveSettings();
+              })
+          );
+      }
+
+      new Setting(containerEl)
+        .setName('Include replies')
+        .setDesc('Fetch replies to saved comments (requires additional API calls per comment)')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.includeCommentReplies).onChange(async value => {
+            this.settings.includeCommentReplies = value;
+            await this.saveSettings();
+            this.display();
+          })
+        );
+
+      if (this.settings.includeCommentReplies) {
+        new Setting(containerEl)
+          .setName('Reply depth')
+          .setDesc(
+            `How many levels of replies to fetch (1-${COMMENT_MAX_DEPTH}). Reddit limits to ${COMMENT_MAX_DEPTH} levels per request.`
+          )
+          .addSlider(slider =>
+            slider
+              .setLimits(1, COMMENT_MAX_DEPTH, 1)
+              .setValue(this.settings.commentReplyDepth)
+              .setDynamicTooltip()
+              .onChange(async value => {
+                this.settings.commentReplyDepth = value;
+                await this.saveSettings();
+              })
+          );
+      }
+
+      // Comment context info box
+      const commentContextInfo = containerEl.createDiv();
+      commentContextInfo.setCssProps({
+        backgroundColor: 'var(--background-secondary)',
+        padding: '10px',
+        borderRadius: '4px',
+        marginBottom: '15px',
+        fontSize: '0.85em',
+      });
+
+      commentContextInfo.createEl('strong', { text: '💬 Comment context info:' });
+      commentContextInfo.createEl('br');
+      commentContextInfo.createSpan({
+        text: '• Context shows the conversation leading to your saved comment',
+      });
+      commentContextInfo.createEl('br');
+      commentContextInfo.createSpan({
+        text: '• Replies show responses to your saved comment',
+      });
+      commentContextInfo.createEl('br');
+      commentContextInfo.createSpan({
+        text: '• Reddit API limits: 100 top-level comments, 5 levels deep per request',
+      });
+      commentContextInfo.createEl('br');
+      commentContextInfo.createSpan({
+        text: '• Enabling these options increases API calls and import time',
+      });
 
       // Media Download Settings
       new Setting(containerEl).setName('Media download options').setHeading();

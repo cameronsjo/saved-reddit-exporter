@@ -58,6 +58,10 @@ describe('TemplaterHandler', () => {
       useTemplater: false,
       postTemplatePath: '',
       commentTemplatePath: '',
+      fetchCommentContext: false,
+      commentContextDepth: 3,
+      includeCommentReplies: false,
+      commentReplyDepth: 2,
     };
 
     // Create mock vault with jest functions

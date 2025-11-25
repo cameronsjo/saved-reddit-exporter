@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile } from 'obsidian';
-import { RedditSavedSettings, ImportResult, RedditItem } from './types';
+import { RedditSavedSettings, ImportResult, RedditItem, RedditItemData } from './types';
 import {
   DEFAULT_SETTINGS,
   REDDIT_ITEM_TYPE_COMMENT,
@@ -162,6 +162,49 @@ export default class RedditSavedPlugin extends Plugin {
     new Notice(`Found ${existingIds.size} imported Reddit posts in vault`);
   }
 
+  /**
+   * Enrich comment data with parent context and/or replies
+   * This requires additional API calls per comment
+   */
+  private async enrichCommentData(data: RedditItemData): Promise<void> {
+    const shouldFetchContext = this.settings.fetchCommentContext && data.permalink;
+    const shouldFetchReplies = this.settings.includeCommentReplies && data.permalink;
+
+    if (!shouldFetchContext && !shouldFetchReplies) {
+      return;
+    }
+
+    try {
+      // Fetch parent context if enabled
+      if (shouldFetchContext) {
+        const enrichedData = await this.apiClient.fetchCommentWithContext(
+          data.permalink,
+          this.settings.commentContextDepth
+        );
+
+        if (enrichedData?.parent_comments) {
+          data.parent_comments = enrichedData.parent_comments;
+          data.depth = enrichedData.depth;
+        }
+      }
+
+      // Fetch replies if enabled
+      if (shouldFetchReplies) {
+        const replies = await this.apiClient.fetchCommentReplies(
+          data.permalink,
+          this.settings.commentReplyDepth
+        );
+
+        if (replies && replies.length > 0) {
+          data.child_comments = replies;
+        }
+      }
+    } catch (error) {
+      console.error('Error enriching comment data:', error);
+      // Continue without context/replies rather than failing the import
+    }
+  }
+
   private async createMarkdownFiles(items: RedditItem[]): Promise<ImportResult> {
     const folder = this.app.vault.getAbstractFileByPath(this.settings.saveLocation);
 
@@ -189,6 +232,11 @@ export default class RedditSavedPlugin extends Plugin {
       }
 
       const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
+
+      // Fetch comment context and replies if enabled
+      if (isComment) {
+        await this.enrichCommentData(data);
+      }
 
       const rawFileName = isComment ? `Comment - ${data.link_title || 'Unknown'}` : data.title!;
 

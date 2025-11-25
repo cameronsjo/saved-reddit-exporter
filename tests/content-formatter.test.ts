@@ -33,6 +33,10 @@ describe('ContentFormatter', () => {
       useTemplater: false,
       postTemplatePath: '',
       commentTemplatePath: '',
+      fetchCommentContext: false,
+      commentContextDepth: 3,
+      includeCommentReplies: false,
+      commentReplyDepth: 2,
     };
 
     mockMediaHandler = new MediaHandler({} as App, mockSettings) as jest.Mocked<MediaHandler>;
@@ -342,6 +346,193 @@ describe('ContentFormatter', () => {
 
       expect(result).toContain('🎥 **Reddit Video**');
       expect(result).toContain('⚠️ Reddit-hosted video');
+    });
+  });
+
+  describe('comment tree formatting', () => {
+    it('should format comment with parent context', async () => {
+      const parentComments = [
+        {
+          id: 'parent1',
+          name: 't1_parent1',
+          author: 'parentuser',
+          subreddit: 'test',
+          created_utc: 1234567880,
+          permalink: '/r/test/comments/post1/title/parent1',
+          score: 50,
+          body: 'This is the parent comment',
+          is_submitter: false,
+        },
+      ];
+
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'testuser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 25,
+        body: 'This is my reply',
+        is_submitter: false,
+        link_title: 'Original Post Title',
+        link_permalink: '/r/test/comments/post1',
+        parent_id: 't1_parent1',
+        parent_comments: parentComments,
+        depth: 1,
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('has_parent_context: true');
+      expect(result).toContain('parent_context_count: 1');
+      expect(result).toContain('## 📜 Parent Context');
+      expect(result).toContain('**u/parentuser**');
+      expect(result).toContain('This is the parent comment');
+      expect(result).toContain('## 💬 Your Saved Comment');
+      expect(result).toContain('This is my reply');
+    });
+
+    it('should format comment with replies', async () => {
+      const childComments = [
+        {
+          id: 'reply1',
+          name: 't1_reply1',
+          author: 'replier1',
+          subreddit: 'test',
+          created_utc: 1234567900,
+          permalink: '/r/test/comments/post1/title/reply1',
+          score: 10,
+          body: 'First reply to your comment',
+          is_submitter: true,
+          depth: 1,
+        },
+        {
+          id: 'reply2',
+          name: 't1_reply2',
+          author: 'replier2',
+          subreddit: 'test',
+          created_utc: 1234567910,
+          permalink: '/r/test/comments/post1/title/reply2',
+          score: 5,
+          body: 'Second reply',
+          is_submitter: false,
+          depth: 1,
+        },
+      ];
+
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'testuser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 100,
+        body: 'This is my comment',
+        is_submitter: false,
+        link_title: 'Original Post Title',
+        child_comments: childComments,
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('has_replies: true');
+      expect(result).toContain('reply_count: 2');
+      expect(result).toContain('## 💬 Replies (2)');
+      expect(result).toContain('**u/replier1**');
+      expect(result).toContain('👑 OP');
+      expect(result).toContain('First reply to your comment');
+      expect(result).toContain('**u/replier2**');
+      expect(result).toContain('Second reply');
+    });
+
+    it('should include comment tree metadata in frontmatter', async () => {
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'testuser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 50,
+        body: 'Test comment',
+        link_title: 'Test Post',
+        parent_id: 't1_parent123',
+        link_id: 't3_post123',
+        depth: 2,
+        distinguished: 'moderator',
+        edited: 1234567895,
+        archived: true,
+        locked: false,
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('parent_id: t1_parent123');
+      expect(result).toContain('parent_type: comment');
+      expect(result).toContain('link_id: t3_post123');
+      expect(result).toContain('depth: 2');
+      expect(result).toContain('distinguished: moderator');
+      expect(result).toContain('edited:');
+      expect(result).toContain('archived: true');
+    });
+
+    it('should show reply indicator for nested comments', async () => {
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'testuser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 25,
+        body: 'This is a reply to another comment',
+        link_title: 'Post Title',
+        parent_id: 't1_othercomment',
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('↩️ *This is a reply to another comment*');
+    });
+
+    it('should show top-level indicator for direct replies to posts', async () => {
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'testuser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 25,
+        body: 'This is a top-level comment',
+        link_title: 'Post Title',
+        parent_id: 't3_post123',
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('💬 *This is a top-level comment on the post*');
+    });
+
+    it('should show depth indicator in comment header', async () => {
+      const commentData = {
+        id: 'comment1',
+        name: 't1_comment1',
+        author: 'testuser',
+        subreddit: 'test',
+        created_utc: 1234567890,
+        permalink: '/r/test/comments/post1/title/comment1',
+        score: 25,
+        body: 'Nested comment',
+        link_title: 'Post Title',
+        depth: 3,
+      };
+
+      const result = await formatter.formatRedditContent(commentData, true);
+
+      expect(result).toContain('📊 Depth: 3');
     });
   });
 

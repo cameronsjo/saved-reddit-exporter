@@ -37,6 +37,10 @@ describe('RedditSavedSettingTab', () => {
       useTemplater: false,
       postTemplatePath: '',
       commentTemplatePath: '',
+      fetchCommentContext: false,
+      commentContextDepth: 3,
+      includeCommentReplies: false,
+      commentReplyDepth: 2,
     };
 
     mockSaveSettings = jest.fn().mockResolvedValue(undefined);

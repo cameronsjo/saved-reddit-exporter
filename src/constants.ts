@@ -103,6 +103,13 @@ export const TEMPLATER_PLUGIN_ID = 'templater-obsidian';
 export const DEFAULT_POST_TEMPLATE_PATH = '';
 export const DEFAULT_COMMENT_TEMPLATE_PATH = '';
 
+// Comment Tree Configuration
+export const COMMENT_MAX_TOP_LEVEL = 100; // Reddit API limit for top-level comments
+export const COMMENT_MAX_DEPTH = 5; // Reddit API limit for reply depth per request
+export const COMMENT_CONTEXT_MAX = 10; // Max parent context levels
+export const COMMENT_CONTEXT_DEFAULT = 3; // Default parent context levels
+export const COMMENT_REPLY_DEPTH_DEFAULT = 2; // Default reply depth
+
 export const DEFAULT_SETTINGS: RedditSavedSettings = {
   clientId: '',
   clientSecret: '',
@@ -125,4 +132,9 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   useTemplater: false,
   postTemplatePath: DEFAULT_POST_TEMPLATE_PATH,
   commentTemplatePath: DEFAULT_COMMENT_TEMPLATE_PATH,
+  // Comment tree defaults
+  fetchCommentContext: false,
+  commentContextDepth: COMMENT_CONTEXT_DEFAULT,
+  includeCommentReplies: false,
+  commentReplyDepth: COMMENT_REPLY_DEPTH_DEFAULT,
 };
