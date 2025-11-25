@@ -1,5 +1,5 @@
 import { Notice, Plugin } from 'obsidian';
-import { RedditSavedSettings, ImportResult, RedditItem } from './types';
+import { RedditSavedSettings, ImportResult, RedditItem, ContentOrigin } from './types';
 import {
   DEFAULT_SETTINGS,
   REDDIT_ITEM_TYPE_COMMENT,
@@ -7,6 +7,7 @@ import {
   MSG_NO_POSTS_FOUND,
   MSG_FETCHING_POSTS,
   MSG_RESCAN_VAULT,
+  MSG_NO_CONTENT_TYPES,
 } from './constants';
 import { RedditAuth } from './auth';
 import { RedditApiClient } from './api-client';
@@ -81,10 +82,29 @@ export default class RedditSavedPlugin extends Plugin {
     await this.saveData(this.settings);
   }
 
+  /**
+   * Check if any content types are enabled
+   */
+  private hasEnabledContentTypes(): boolean {
+    return (
+      this.settings.importSavedPosts ||
+      this.settings.importSavedComments ||
+      this.settings.importUpvoted ||
+      this.settings.importUserPosts ||
+      this.settings.importUserComments
+    );
+  }
+
   async fetchSavedPosts() {
     if (!this.auth.isAuthenticated()) {
       new Notice(MSG_AUTH_REQUIRED);
       await this.auth.initiateOAuth();
+      return;
+    }
+
+    // Check if any content types are enabled
+    if (!this.hasEnabledContentTypes()) {
+      new Notice(MSG_NO_CONTENT_TYPES);
       return;
     }
 
@@ -93,14 +113,54 @@ export default class RedditSavedPlugin extends Plugin {
 
       new Notice(MSG_FETCHING_POSTS);
 
-      const savedItems = await this.apiClient.fetchAllSaved();
+      const allItems: RedditItem[] = [];
+      const savedItemsForUnsave: RedditItem[] = [];
 
-      if (savedItems.length === 0) {
+      // Fetch saved items (posts and/or comments)
+      if (this.settings.importSavedPosts || this.settings.importSavedComments) {
+        const savedItems = await this.apiClient.fetchAllSaved();
+
+        // Filter based on content type preferences
+        const filteredSaved = savedItems.filter(item => {
+          const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
+          if (isComment) {
+            return this.settings.importSavedComments;
+          } else {
+            return this.settings.importSavedPosts;
+          }
+        });
+
+        allItems.push(...filteredSaved);
+        savedItemsForUnsave.push(...filteredSaved);
+      }
+
+      // Fetch upvoted posts
+      if (this.settings.importUpvoted) {
+        const upvotedItems = await this.apiClient.fetchUpvoted();
+        allItems.push(...upvotedItems);
+      }
+
+      // Fetch user's own posts
+      if (this.settings.importUserPosts) {
+        const userPosts = await this.apiClient.fetchUserPosts();
+        allItems.push(...userPosts);
+      }
+
+      // Fetch user's own comments
+      if (this.settings.importUserComments) {
+        const userComments = await this.apiClient.fetchUserComments();
+        allItems.push(...userComments);
+      }
+
+      if (allItems.length === 0) {
         new Notice(MSG_NO_POSTS_FOUND);
         return;
       }
 
-      const result = await this.createMarkdownFiles(savedItems);
+      // Deduplicate items by ID (in case an item appears in multiple categories)
+      const uniqueItems = this.deduplicateItems(allItems);
+
+      const result = await this.createMarkdownFiles(uniqueItems);
 
       // Provide detailed feedback
       if (result.skipped > 0) {
@@ -108,12 +168,12 @@ export default class RedditSavedPlugin extends Plugin {
           `Imported ${result.imported} new items, skipped ${result.skipped} already imported items`
         );
       } else {
-        new Notice(`Successfully imported ${result.imported} saved items`);
+        new Notice(`Successfully imported ${result.imported} items`);
       }
 
-      if (this.settings.autoUnsave) {
-        // Only unsave newly imported items
-        const itemsToUnsave = savedItems.filter(_item => {
+      if (this.settings.autoUnsave && savedItemsForUnsave.length > 0) {
+        // Only unsave saved items (not upvoted or user content)
+        const itemsToUnsave = savedItemsForUnsave.filter(_item => {
           return !this.settings.skipExisting || result.imported > 0;
         });
         if (itemsToUnsave.length > 0) {
@@ -121,10 +181,24 @@ export default class RedditSavedPlugin extends Plugin {
         }
       }
     } catch (error) {
-      console.error('Error fetching saved posts:', error);
+      console.error('Error fetching posts:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       new Notice(`Error: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Remove duplicate items, keeping the first occurrence (which preserves content origin)
+   */
+  private deduplicateItems(items: RedditItem[]): RedditItem[] {
+    const seen = new Set<string>();
+    return items.filter(item => {
+      if (seen.has(item.data.id)) {
+        return false;
+      }
+      seen.add(item.data.id);
+      return true;
+    });
   }
 
   private scanExistingRedditIds(): Set<string> {
@@ -186,8 +260,24 @@ export default class RedditSavedPlugin extends Plugin {
       }
 
       const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
+      const contentOrigin: ContentOrigin = item.contentOrigin || 'saved';
 
-      const rawFileName = isComment ? `Comment - ${data.link_title || 'Unknown'}` : data.title!;
+      // Generate filename based on content type
+      let rawFileName: string;
+      if (isComment) {
+        rawFileName = `Comment - ${data.link_title || 'Unknown'}`;
+      } else {
+        rawFileName = data.title!;
+      }
+
+      // Add prefix for non-saved content to help with organization
+      if (contentOrigin === 'upvoted') {
+        rawFileName = `[Upvoted] ${rawFileName}`;
+      } else if (contentOrigin === 'submitted') {
+        rawFileName = `[My Post] ${rawFileName}`;
+      } else if (contentOrigin === 'commented') {
+        rawFileName = `[My Comment] ${rawFileName}`;
+      }
 
       // Validate path safety before sanitizing
       if (!isPathSafe(rawFileName)) {
@@ -206,7 +296,11 @@ export default class RedditSavedPlugin extends Plugin {
         counter++;
       }
 
-      const content = await this.contentFormatter.formatRedditContent(data, isComment);
+      const content = await this.contentFormatter.formatRedditContent(
+        data,
+        isComment,
+        contentOrigin
+      );
       await this.app.vault.create(filePath, content);
 
       // Add to imported IDs

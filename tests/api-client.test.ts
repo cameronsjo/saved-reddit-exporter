@@ -22,16 +22,24 @@ describe('RedditApiClient', () => {
       tokenExpiry: Date.now() + 3600000,
       username: 'testuser',
       fetchLimit: 100,
-      outputPath: 'reddit-saved',
+      saveLocation: 'reddit-saved',
       skipExisting: true,
       autoUnsave: false,
-      downloadMedia: true,
       downloadImages: true,
       downloadGifs: true,
       downloadVideos: false,
-      mediaPath: 'assets/reddit',
+      mediaFolder: 'assets/reddit',
       oauthRedirectPort: 8080,
       importedIds: [],
+      showAdvancedSettings: false,
+      // New content type settings
+      importSavedPosts: true,
+      importSavedComments: true,
+      importUpvoted: false,
+      importUserPosts: false,
+      importUserComments: false,
+      importCrosspostOriginal: false,
+      preserveCrosspostMetadata: true,
     };
 
     mockEnsureValidToken = jest.fn().mockResolvedValue(undefined);
@@ -178,7 +186,12 @@ describe('RedditApiClient', () => {
       mockRequestUrl.mockResolvedValue(mockResponse);
 
       const result = await client.fetchAllSaved();
-      expect(result).toEqual(mockItems);
+      // Items now include contentOrigin
+      expect(result).toHaveLength(mockItems.length);
+      expect(result[0]).toMatchObject({
+        ...mockItems[0],
+        contentOrigin: 'saved',
+      });
       expect(mockEnsureValidToken).toHaveBeenCalled();
       expect(mockRequestUrl).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -257,7 +270,16 @@ describe('RedditApiClient', () => {
 
       const result = await client.fetchAllSaved();
       expect(mockRequestUrl).toHaveBeenCalledTimes(2);
-      expect(result).toEqual([...mockItems1, ...mockItems2]);
+      // Items now include contentOrigin
+      expect(result).toHaveLength(mockItems1.length + mockItems2.length);
+      expect(result[0]).toMatchObject({
+        ...mockItems1[0],
+        contentOrigin: 'saved',
+      });
+      expect(result[100]).toMatchObject({
+        ...mockItems2[0],
+        contentOrigin: 'saved',
+      });
 
       // Restore setTimeout
       jest.restoreAllMocks();
@@ -309,7 +331,11 @@ describe('RedditApiClient', () => {
 
       const result = await client.fetchAllSaved();
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(mockItems[0]);
+      // Items now include contentOrigin
+      expect(result[0]).toMatchObject({
+        ...mockItems[0],
+        contentOrigin: 'saved',
+      });
     });
   });
 
