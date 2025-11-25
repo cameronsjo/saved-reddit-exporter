@@ -161,7 +161,9 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Auto-unsave')
-      .setDesc('Automatically unsave posts from Reddit after importing')
+      .setDesc(
+        'Automatically unsave posts from Reddit after importing. Note: If you previously authenticated without this feature, you must re-authenticate to grant the required permission.'
+      )
       .addToggle(toggle =>
         toggle.setValue(this.settings.autoUnsave).onChange(async value => {
           this.settings.autoUnsave = value;

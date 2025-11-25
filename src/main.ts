@@ -111,14 +111,9 @@ export default class RedditSavedPlugin extends Plugin {
         new Notice(`Successfully imported ${result.imported} saved items`);
       }
 
-      if (this.settings.autoUnsave) {
+      if (this.settings.autoUnsave && result.importedItems.length > 0) {
         // Only unsave newly imported items
-        const itemsToUnsave = savedItems.filter(_item => {
-          return !this.settings.skipExisting || result.imported > 0;
-        });
-        if (itemsToUnsave.length > 0) {
-          await this.apiClient.unsaveItems(itemsToUnsave);
-        }
+        await this.apiClient.unsaveItems(result.importedItems);
       }
     } catch (error) {
       console.error('Error fetching saved posts:', error);
@@ -174,6 +169,7 @@ export default class RedditSavedPlugin extends Plugin {
 
     let importedCount = 0;
     let skippedCount = 0;
+    const importedItems: RedditItem[] = [];
 
     for (const item of items) {
       const data = item.data;
@@ -214,13 +210,15 @@ export default class RedditSavedPlugin extends Plugin {
         this.settings.importedIds.push(redditId);
       }
 
+      // Track successfully imported item
+      importedItems.push(item);
       importedCount++;
     }
 
     // Save updated imported IDs
     await this.saveSettings();
 
-    // Return counts for better user feedback
-    return { imported: importedCount, skipped: skippedCount };
+    // Return counts and imported items for better user feedback and auto-unsave
+    return { imported: importedCount, skipped: skippedCount, importedItems };
   }
 }

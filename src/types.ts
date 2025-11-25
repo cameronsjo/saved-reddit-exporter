@@ -29,6 +29,7 @@ export interface MediaInfo {
 export interface ImportResult {
   imported: number;
   skipped: number;
+  importedItems: RedditItem[];
 }
 
 export interface RedditItem {
