@@ -190,6 +190,13 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   // Filter defaults
   filterSettings: DEFAULT_FILTER_SETTINGS,
   showFilterSettings: false,
+  // Performance and reliability defaults
+  enableEnhancedMode: true,
+  enableCheckpointing: true,
+  showPerformanceStats: false,
+  maxConcurrentRequests: 2,
+  maxRetries: 3,
+  enableOfflineQueue: true,
 };
 
 // Comment export defaults

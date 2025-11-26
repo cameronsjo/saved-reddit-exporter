@@ -35,6 +35,13 @@ export interface RedditSavedSettings {
   // Filter settings
   filterSettings: FilterSettings;
   showFilterSettings: boolean; // Toggle filter settings visibility
+  // Performance and reliability settings
+  enableEnhancedMode: boolean; // Enable advanced performance features
+  enableCheckpointing: boolean; // Enable resumable imports with checkpoints
+  showPerformanceStats: boolean; // Show performance stats after import
+  maxConcurrentRequests: number; // Maximum concurrent API requests
+  maxRetries: number; // Maximum retry attempts for failed requests
+  enableOfflineQueue: boolean; // Queue requests when offline
 }
 
 export type PostType = 'text' | 'link' | 'image' | 'video';
