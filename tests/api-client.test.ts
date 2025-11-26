@@ -22,16 +22,28 @@ describe('RedditApiClient', () => {
       tokenExpiry: Date.now() + 3600000,
       username: 'testuser',
       fetchLimit: 100,
-      outputPath: 'reddit-saved',
+      saveLocation: 'Reddit Saved',
       skipExisting: true,
       autoUnsave: false,
-      downloadMedia: true,
       downloadImages: true,
       downloadGifs: true,
       downloadVideos: false,
-      mediaPath: 'assets/reddit',
-      oauthRedirectPort: 8080,
+      mediaFolder: 'Attachments',
+      oauthRedirectPort: 9638,
       importedIds: [],
+      showAdvancedSettings: false,
+      // Content type settings
+      importSavedPosts: true,
+      importSavedComments: true,
+      importUpvoted: false,
+      importUserPosts: false,
+      importUserComments: false,
+      importCrosspostOriginal: false,
+      preserveCrosspostMetadata: true,
+      // Organization settings
+      organizeBySubreddit: false,
+      exportPostComments: false,
+      commentUpvoteThreshold: 0,
     };
 
     mockEnsureValidToken = jest.fn().mockResolvedValue(undefined);
@@ -178,7 +190,12 @@ describe('RedditApiClient', () => {
       mockRequestUrl.mockResolvedValue(mockResponse);
 
       const result = await client.fetchAllSaved();
-      expect(result).toEqual(mockItems);
+      // Items now include contentOrigin
+      expect(result).toHaveLength(mockItems.length);
+      expect(result[0]).toMatchObject({
+        ...mockItems[0],
+        contentOrigin: 'saved',
+      });
       expect(mockEnsureValidToken).toHaveBeenCalled();
       expect(mockRequestUrl).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -257,7 +274,16 @@ describe('RedditApiClient', () => {
 
       const result = await client.fetchAllSaved();
       expect(mockRequestUrl).toHaveBeenCalledTimes(2);
-      expect(result).toEqual([...mockItems1, ...mockItems2]);
+      // Items now include contentOrigin
+      expect(result).toHaveLength(mockItems1.length + mockItems2.length);
+      expect(result[0]).toMatchObject({
+        ...mockItems1[0],
+        contentOrigin: 'saved',
+      });
+      expect(result[100]).toMatchObject({
+        ...mockItems2[0],
+        contentOrigin: 'saved',
+      });
 
       // Restore setTimeout
       jest.restoreAllMocks();
@@ -309,7 +335,11 @@ describe('RedditApiClient', () => {
 
       const result = await client.fetchAllSaved();
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(mockItems[0]);
+      // Items now include contentOrigin
+      expect(result[0]).toMatchObject({
+        ...mockItems[0],
+        contentOrigin: 'saved',
+      });
     });
   });
 
@@ -382,6 +412,229 @@ describe('RedditApiClient', () => {
       );
 
       consoleSpy.mockRestore();
+    });
+  });
+
+  describe('fetchPostComments', () => {
+    it('should fetch comments for a post', async () => {
+      const mockCommentsResponse = [
+        { kind: 'Listing', data: { children: [] } }, // Post data
+        {
+          kind: 'Listing',
+          data: {
+            children: [
+              {
+                kind: 't1',
+                data: {
+                  id: 'comment1',
+                  author: 'commenter1',
+                  body: 'Great post!',
+                  score: 50,
+                  created_utc: 1234567890,
+                  is_submitter: false,
+                  replies: '',
+                },
+              },
+              {
+                kind: 't1',
+                data: {
+                  id: 'comment2',
+                  author: 'commenter2',
+                  body: 'I agree',
+                  score: 25,
+                  created_utc: 1234567891,
+                  is_submitter: false,
+                  replies: '',
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      mockRequestUrl.mockResolvedValue({
+        json: mockCommentsResponse,
+        headers: { 'x-ratelimit-remaining': '100' },
+      });
+
+      const result = await client.fetchPostComments('/r/test/comments/abc123/', 0);
+
+      expect(result).toHaveLength(2);
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          id: 'comment1',
+          author: 'commenter1',
+          body: 'Great post!',
+          score: 50,
+        })
+      );
+      expect(mockEnsureValidToken).toHaveBeenCalled();
+    });
+
+    it('should filter comments by upvote threshold', async () => {
+      const mockCommentsResponse = [
+        { kind: 'Listing', data: { children: [] } },
+        {
+          kind: 'Listing',
+          data: {
+            children: [
+              {
+                kind: 't1',
+                data: {
+                  id: 'highscore',
+                  author: 'popular',
+                  body: 'Popular comment',
+                  score: 100,
+                  created_utc: 1234567890,
+                  is_submitter: false,
+                  replies: '',
+                },
+              },
+              {
+                kind: 't1',
+                data: {
+                  id: 'lowscore',
+                  author: 'unpopular',
+                  body: 'Unpopular comment',
+                  score: 5,
+                  created_utc: 1234567891,
+                  is_submitter: false,
+                  replies: '',
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      mockRequestUrl.mockResolvedValue({
+        json: mockCommentsResponse,
+        headers: { 'x-ratelimit-remaining': '100' },
+      });
+
+      const result = await client.fetchPostComments('/r/test/comments/abc123/', 50);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].author).toBe('popular');
+    });
+
+    it('should parse nested replies', async () => {
+      const mockCommentsResponse = [
+        { kind: 'Listing', data: { children: [] } },
+        {
+          kind: 'Listing',
+          data: {
+            children: [
+              {
+                kind: 't1',
+                data: {
+                  id: 'parent',
+                  author: 'parent_author',
+                  body: 'Parent comment',
+                  score: 50,
+                  created_utc: 1234567890,
+                  is_submitter: false,
+                  replies: {
+                    kind: 'Listing',
+                    data: {
+                      children: [
+                        {
+                          kind: 't1',
+                          data: {
+                            id: 'child',
+                            author: 'child_author',
+                            body: 'Child reply',
+                            score: 25,
+                            created_utc: 1234567891,
+                            is_submitter: false,
+                            replies: '',
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      mockRequestUrl.mockResolvedValue({
+        json: mockCommentsResponse,
+        headers: { 'x-ratelimit-remaining': '100' },
+      });
+
+      const result = await client.fetchPostComments('/r/test/comments/abc123/', 0);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].replies).toHaveLength(1);
+      expect(result[0].replies![0].body).toBe('Child reply');
+    });
+
+    it('should skip "more" comment placeholders', async () => {
+      const mockCommentsResponse = [
+        { kind: 'Listing', data: { children: [] } },
+        {
+          kind: 'Listing',
+          data: {
+            children: [
+              {
+                kind: 't1',
+                data: {
+                  id: 'comment1',
+                  author: 'user1',
+                  body: 'Real comment',
+                  score: 50,
+                  created_utc: 1234567890,
+                  is_submitter: false,
+                  replies: '',
+                },
+              },
+              {
+                kind: 'more',
+                data: {
+                  count: 10,
+                  children: ['abc', 'def'],
+                },
+              },
+            ],
+          },
+        },
+      ];
+
+      mockRequestUrl.mockResolvedValue({
+        json: mockCommentsResponse,
+        headers: { 'x-ratelimit-remaining': '100' },
+      });
+
+      const result = await client.fetchPostComments('/r/test/comments/abc123/', 0);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe('comment1');
+    });
+
+    it('should handle API errors gracefully', async () => {
+      mockRequestUrl.mockRejectedValue(new Error('API Error'));
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      const result = await client.fetchPostComments('/r/test/comments/abc123/', 0);
+
+      expect(result).toEqual([]);
+      expect(consoleSpy).toHaveBeenCalledWith('Error fetching comments:', expect.any(Error));
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should return empty array for invalid response', async () => {
+      mockRequestUrl.mockResolvedValue({
+        json: { invalid: 'response' },
+        headers: { 'x-ratelimit-remaining': '100' },
+      });
+
+      const result = await client.fetchPostComments('/r/test/comments/abc123/', 0);
+
+      expect(result).toEqual([]);
     });
   });
 });

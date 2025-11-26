@@ -5,6 +5,7 @@ import {
   PostType,
   FilterMode,
   DateRangePreset,
+  UnsaveMode,
 } from './types';
 import { FILTER_PRESETS } from './filters';
 import { DEFAULT_FILTER_SETTINGS } from './constants';
@@ -101,6 +102,96 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
     }
 
+    // Content Types Section
+    new Setting(containerEl).setName('Content types').setHeading();
+
+    const contentTypesInfo = containerEl.createDiv();
+    contentTypesInfo.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '10px',
+      borderRadius: '4px',
+      marginBottom: '15px',
+    });
+
+    contentTypesInfo.createEl('strong', { text: 'ℹ️ Choose what to import' });
+    contentTypesInfo.createEl('br');
+    contentTypesInfo.createSpan({
+      text: 'Select the types of Reddit content you want to import to your vault.',
+    });
+
+    new Setting(containerEl)
+      .setName('Saved posts')
+      .setDesc('Import posts you have saved on Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importSavedPosts).onChange(async value => {
+          this.settings.importSavedPosts = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Saved comments')
+      .setDesc('Import comments you have saved on Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importSavedComments).onChange(async value => {
+          this.settings.importSavedComments = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Upvoted posts')
+      .setDesc('Import posts you have upvoted')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUpvoted).onChange(async value => {
+          this.settings.importUpvoted = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Your posts')
+      .setDesc('Import posts you have submitted to Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUserPosts).onChange(async value => {
+          this.settings.importUserPosts = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Your comments')
+      .setDesc('Import comments you have posted on Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUserComments).onChange(async value => {
+          this.settings.importUserComments = value;
+          await this.saveSettings();
+        })
+      );
+
+    // Crosspost Settings
+    new Setting(containerEl).setName('Crosspost handling').setHeading();
+
+    new Setting(containerEl)
+      .setName('Import original post')
+      .setDesc('When a post is a crosspost, import the original post instead of the crosspost')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importCrosspostOriginal).onChange(async value => {
+          this.settings.importCrosspostOriginal = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Preserve crosspost metadata')
+      .setDesc('Keep information about crosspost relationships in the frontmatter')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.preserveCrosspostMetadata).onChange(async value => {
+          this.settings.preserveCrosspostMetadata = value;
+          await this.saveSettings();
+        })
+      );
+
     new Setting(containerEl).setName('Import settings').setHeading();
 
     // Rate limiting info
@@ -114,7 +205,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API limits' });
     rateLimitInfo.createEl('br');
-    rateLimitInfo.createSpan({ text: '• Maximum 1,000 saved items can be fetched' });
+    rateLimitInfo.createSpan({ text: '• Maximum 1,000 items per content type can be fetched' });
     rateLimitInfo.createEl('br');
     rateLimitInfo.createSpan({ text: '• Rate limiting applies (60 requests/minute)' });
     rateLimitInfo.createEl('br');
@@ -168,14 +259,64 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Auto-unsave')
-      .setDesc('Automatically unsave posts from Reddit after importing')
+      .setName('Unsave after import')
+      .setDesc(
+        'Choose how to handle unsaving posts from Reddit after importing. Note: If you previously authenticated without this feature, you must re-authenticate to grant the required permission.'
+      )
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('off', 'Off - Keep saved on Reddit')
+          .addOption('prompt', 'Prompt - Choose which to unsave')
+          .addOption('auto', 'Auto - Unsave all imported')
+          .setValue(this.settings.unsaveMode)
+          .onChange(async value => {
+            this.settings.unsaveMode = value as UnsaveMode;
+            // Keep legacy setting in sync for backwards compatibility
+            this.settings.autoUnsave = value === 'auto';
+            await this.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Organize by subreddit')
+      .setDesc('Create subfolders for each subreddit (e.g., Reddit Saved/obsidian/)')
       .addToggle(toggle =>
-        toggle.setValue(this.settings.autoUnsave).onChange(async value => {
-          this.settings.autoUnsave = value;
+        toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
+          this.settings.organizeBySubreddit = value;
           await this.saveSettings();
         })
       );
+
+    new Setting(containerEl).setName('Comment export settings').setHeading();
+
+    new Setting(containerEl)
+      .setName('Export post comments')
+      .setDesc('Include top comments when exporting saved posts')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.exportPostComments).onChange(async value => {
+          this.settings.exportPostComments = value;
+          await this.saveSettings();
+          this.display(); // Refresh to show/hide threshold setting
+        })
+      );
+
+    if (this.settings.exportPostComments) {
+      new Setting(containerEl)
+        .setName('Comment upvote threshold')
+        .setDesc('Minimum upvotes required for a comment to be included (0 = include all)')
+        .addText(text =>
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.settings.commentUpvoteThreshold))
+            .onChange(async value => {
+              const num = parseInt(value);
+              if (!isNaN(num) && num >= 0) {
+                this.settings.commentUpvoteThreshold = num;
+                await this.saveSettings();
+              }
+            })
+        );
+    }
 
     // Advanced Settings Section
     new Setting(containerEl).setName('Advanced settings').setHeading();

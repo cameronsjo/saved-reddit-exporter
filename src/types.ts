@@ -1,3 +1,5 @@
+export type UnsaveMode = 'off' | 'prompt' | 'auto';
+
 export interface RedditSavedSettings {
   clientId: string;
   clientSecret: string;
@@ -6,7 +8,8 @@ export interface RedditSavedSettings {
   tokenExpiry: number;
   username: string;
   saveLocation: string;
-  autoUnsave: boolean;
+  autoUnsave: boolean; // Deprecated: use unsaveMode instead
+  unsaveMode: UnsaveMode; // 'off' | 'prompt' | 'auto'
   fetchLimit: number;
   importedIds: string[]; // Track imported Reddit IDs
   skipExisting: boolean; // Skip already imported posts
@@ -16,6 +19,19 @@ export interface RedditSavedSettings {
   downloadGifs: boolean; // Download GIF files
   downloadVideos: boolean; // Download video files
   mediaFolder: string; // Folder for downloaded media
+  // Content type toggles
+  importSavedPosts: boolean; // Import saved posts (default: true)
+  importSavedComments: boolean; // Import saved comments (default: true)
+  importUpvoted: boolean; // Import upvoted posts
+  importUserPosts: boolean; // Import user's own posts
+  importUserComments: boolean; // Import user's own comments
+  // Crosspost handling
+  importCrosspostOriginal: boolean; // Import original instead of crosspost
+  preserveCrosspostMetadata: boolean; // Keep crosspost relationship info
+  // Organization
+  organizeBySubreddit: boolean; // Organize exports into subreddit subfolders
+  exportPostComments: boolean; // Export comments from saved posts
+  commentUpvoteThreshold: number; // Minimum upvotes for comments to be included
   // Filter settings
   filterSettings: FilterSettings;
   showFilterSettings: boolean; // Toggle filter settings visibility
@@ -86,6 +102,7 @@ export interface ImportResult {
   imported: number;
   skipped: number;
   filtered: number;
+  importedItems: RedditItem[];
   filterBreakdown?: FilterBreakdown;
 }
 
@@ -114,9 +131,13 @@ export interface PreviewResult {
   breakdown: FilterBreakdown;
 }
 
+// Content origin tracking
+export type ContentOrigin = 'saved' | 'upvoted' | 'submitted' | 'commented';
+
 export interface RedditItem {
   kind: string;
   data: RedditItemData;
+  contentOrigin?: ContentOrigin; // Track where this item came from
 }
 
 export interface RedditItemData {
@@ -149,4 +170,18 @@ export interface RedditItemData {
       };
     }>;
   };
+  // Crosspost metadata
+  crosspost_parent?: string; // Full name of parent post (e.g., "t3_abc123")
+  crosspost_parent_list?: RedditItemData[]; // Original post data
+}
+
+export interface RedditComment {
+  id: string;
+  author: string;
+  body: string;
+  score: number;
+  created_utc: number;
+  is_submitter: boolean;
+  depth: number;
+  replies?: RedditComment[];
 }

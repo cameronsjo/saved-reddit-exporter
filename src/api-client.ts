@@ -1,5 +1,5 @@
 import { Notice, requestUrl, RequestUrlParam } from 'obsidian';
-import { RedditSavedSettings, RedditItem } from './types';
+import { RedditSavedSettings, RedditItem, ContentOrigin, RedditComment } from './types';
 import {
   REDDIT_USER_AGENT,
   REDDIT_MAX_ITEMS,
@@ -104,7 +104,14 @@ export class RedditApiClient {
     throw new Error('Max retries exceeded');
   }
 
-  async fetchAllSaved(): Promise<RedditItem[]> {
+  /**
+   * Generic method to fetch user content from various Reddit endpoints
+   */
+  private async fetchUserContent(
+    endpoint: string,
+    contentOrigin: ContentOrigin,
+    progressLabel: string
+  ): Promise<RedditItem[]> {
     const items: RedditItem[] = [];
     let after = '';
     let hasMore = true;
@@ -113,9 +120,7 @@ export class RedditApiClient {
       Math.min(this.settings.fetchLimit, REDDIT_MAX_ITEMS) / REDDIT_PAGE_SIZE
     );
 
-    new Notice(
-      `Fetching saved posts (max ${Math.min(this.settings.fetchLimit, REDDIT_MAX_ITEMS)})...`
-    );
+    new Notice(`${progressLabel} (max ${Math.min(this.settings.fetchLimit, REDDIT_MAX_ITEMS)})...`);
 
     while (hasMore && items.length < this.settings.fetchLimit && pageCount < maxPages) {
       pageCount++;
@@ -124,7 +129,7 @@ export class RedditApiClient {
       await this.ensureValidToken();
 
       const params: RequestUrlParam = {
-        url: `${REDDIT_OAUTH_BASE_URL}/user/${this.settings.username}/saved?limit=${pageSize}${after ? `&after=${after}` : ''}`,
+        url: `${REDDIT_OAUTH_BASE_URL}/user/${this.settings.username}/${endpoint}?limit=${pageSize}${after ? `&after=${after}` : ''}`,
         method: 'GET',
         headers: {
           [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
@@ -136,13 +141,18 @@ export class RedditApiClient {
       const data = response.json.data;
 
       if (data.children && data.children.length > 0) {
-        items.push(...data.children);
+        // Add content origin to each item
+        const itemsWithOrigin = data.children.map((item: RedditItem) => ({
+          ...item,
+          contentOrigin,
+        }));
+        items.push(...itemsWithOrigin);
         after = data.after || '';
         hasMore = !!after && items.length < REDDIT_MAX_ITEMS;
 
         // Update progress
         if (pageCount % PROGRESS_UPDATE_FREQUENCY === 0 || !hasMore) {
-          new Notice(`Fetched ${items.length} saved items...`);
+          new Notice(`Fetched ${items.length} ${progressLabel.toLowerCase()}...`);
         }
       } else {
         hasMore = false;
@@ -158,6 +168,34 @@ export class RedditApiClient {
     const finalCount = Math.min(items.length, this.settings.fetchLimit);
 
     return items.slice(0, finalCount);
+  }
+
+  /**
+   * Fetch saved posts and comments
+   */
+  async fetchAllSaved(): Promise<RedditItem[]> {
+    return this.fetchUserContent('saved', 'saved', 'Fetching saved items');
+  }
+
+  /**
+   * Fetch upvoted posts
+   */
+  async fetchUpvoted(): Promise<RedditItem[]> {
+    return this.fetchUserContent('upvoted', 'upvoted', 'Fetching upvoted posts');
+  }
+
+  /**
+   * Fetch user's own submitted posts
+   */
+  async fetchUserPosts(): Promise<RedditItem[]> {
+    return this.fetchUserContent('submitted', 'submitted', 'Fetching your posts');
+  }
+
+  /**
+   * Fetch user's own comments
+   */
+  async fetchUserComments(): Promise<RedditItem[]> {
+    return this.fetchUserContent('comments', 'commented', 'Fetching your comments');
   }
 
   async unsaveItems(items: RedditItem[]): Promise<void> {
@@ -189,5 +227,94 @@ export class RedditApiClient {
     };
 
     await this.makeRateLimitedRequest(params);
+  }
+
+  async fetchPostComments(
+    permalink: string,
+    upvoteThreshold: number = 0
+  ): Promise<RedditComment[]> {
+    await this.ensureValidToken();
+
+    // Reddit API endpoint for comments: /r/subreddit/comments/article_id
+    // The permalink already contains the path, we just need to use it
+    const url = `${REDDIT_OAUTH_BASE_URL}${permalink}.json?limit=100&depth=5&sort=top`;
+
+    const params: RequestUrlParam = {
+      url,
+      method: 'GET',
+      headers: {
+        [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+        [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
+      },
+    };
+
+    try {
+      const response = await requestUrl(params);
+
+      // Reddit returns an array: [post, comments]
+      // The second element contains the comments
+      if (!Array.isArray(response.json) || response.json.length < 2) {
+        return [];
+      }
+
+      const commentsData = response.json[1]?.data?.children || [];
+      return this.parseComments(commentsData, upvoteThreshold, 0);
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+      return [];
+    }
+  }
+
+  private parseComments(
+    children: Array<{ kind: string; data: Record<string, unknown> }>,
+    upvoteThreshold: number,
+    depth: number,
+    maxDepth: number = 5
+  ): RedditComment[] {
+    const comments: RedditComment[] = [];
+
+    for (const child of children) {
+      // Skip "more" placeholders (kind: 'more')
+      if (child.kind !== 't1') {
+        continue;
+      }
+
+      const data = child.data;
+      const score = (data.score as number) || 0;
+
+      // Filter by upvote threshold
+      if (score < upvoteThreshold) {
+        continue;
+      }
+
+      const comment: RedditComment = {
+        id: data.id as string,
+        author: (data.author as string) || '[deleted]',
+        body: (data.body as string) || '',
+        score,
+        created_utc: (data.created_utc as number) || 0,
+        is_submitter: (data.is_submitter as boolean) || false,
+        depth,
+      };
+
+      // Parse nested replies if within depth limit
+      if (depth < maxDepth && data.replies && typeof data.replies === 'object') {
+        const repliesData = data.replies as {
+          data?: { children?: Array<{ kind: string; data: Record<string, unknown> }> };
+        };
+        if (repliesData.data?.children) {
+          comment.replies = this.parseComments(
+            repliesData.data.children,
+            upvoteThreshold,
+            depth + 1,
+            maxDepth
+          );
+        }
+      }
+
+      comments.push(comment);
+    }
+
+    return comments;
   }
 }

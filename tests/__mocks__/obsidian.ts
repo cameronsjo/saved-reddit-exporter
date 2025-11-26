@@ -106,6 +106,20 @@ export class Setting {
     callback(mockButton);
     return this;
   }
+
+  addDropdown(callback: (dropdown: unknown) => void) {
+    const mockDropdown = {
+      addOption: () => mockDropdown,
+      setValue: () => mockDropdown,
+      onChange: () => mockDropdown,
+    };
+    callback(mockDropdown);
+    return this;
+  }
+
+  setHeading() {
+    return this;
+  }
 }
 
 export class Notice {
@@ -114,9 +128,43 @@ export class Notice {
   }
 }
 
+// Helper to create mock HTML element with Obsidian's extensions
+function createMockElement(tag = 'div'): HTMLElement {
+  const el = document.createElement(tag);
+  (el as HTMLElement & { empty: () => void }).empty = function () {
+    this.innerHTML = '';
+  };
+  (el as HTMLElement & { createEl: typeof createMockElement }).createEl = function (
+    tagName: string,
+    options?: { text?: string; type?: string; value?: string; placeholder?: string }
+  ) {
+    const child = createMockElement(tagName);
+    if (options?.text) child.textContent = options.text;
+    if (options?.type) (child as HTMLInputElement).type = options.type;
+    if (options?.value) (child as HTMLInputElement).value = options.value;
+    if (options?.placeholder) (child as HTMLInputElement).placeholder = options.placeholder;
+    this.appendChild(child);
+    return child;
+  };
+  (el as HTMLElement & { createDiv: () => HTMLElement }).createDiv = function () {
+    return this.createEl('div');
+  };
+  (el as HTMLElement & { addClass: (cls: string) => void }).addClass = function (cls: string) {
+    this.classList.add(cls);
+  };
+  (el as HTMLElement & { setCssProps: (props: Record<string, string>) => void }).setCssProps =
+    function (props: Record<string, string>) {
+      Object.assign(this.style, props);
+    };
+  return el;
+}
+
 export class Modal {
   app: App;
-  contentEl = document.createElement('div');
+  contentEl = createMockElement('div');
+  scope = {
+    register: jest.fn(),
+  };
 
   constructor(app: App) {
     this.app = app;
