@@ -27,6 +27,9 @@ describe('MediaHandler', () => {
       downloadGifs: true,
       downloadVideos: true,
       mediaFolder: 'Attachments',
+      organizeBySubreddit: false,
+      exportPostComments: false,
+      commentUpvoteThreshold: 0,
     };
 
     mockApp = new App();

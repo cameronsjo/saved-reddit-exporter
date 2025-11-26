@@ -38,16 +38,19 @@ describe('RedditAuth', () => {
       tokenExpiry: 0,
       username: '',
       fetchLimit: 100,
-      outputPath: 'reddit-saved',
+      saveLocation: 'Reddit Saved',
       skipExisting: true,
       autoUnsave: false,
-      downloadMedia: true,
       downloadImages: true,
       downloadGifs: true,
       downloadVideos: false,
-      mediaPath: 'assets/reddit',
-      oauthRedirectPort: 8080,
+      mediaFolder: 'Attachments',
+      oauthRedirectPort: 9638,
       importedIds: [],
+      showAdvancedSettings: false,
+      organizeBySubreddit: false,
+      exportPostComments: false,
+      commentUpvoteThreshold: 0,
     };
 
     mockSaveSettings = jest.fn().mockResolvedValue(undefined);

@@ -1,0 +1,92 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+      pr: ${{ steps.release.outputs.pr }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: node
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Update versions.json when release PR is created
+  update-versions-json:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.pr }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-please--branches--main
+
+      - name: Update versions.json
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          if [ -n "$VERSION" ]; then
+            # Get minAppVersion from manifest.json
+            MIN_VERSION=$(jq -r '.minAppVersion' manifest.json)
+            # Add new version entry to versions.json
+            jq --arg ver "$VERSION" --arg min "$MIN_VERSION" '. + {($ver): $min}' versions.json > versions.json.tmp
+            mv versions.json.tmp versions.json
+
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add versions.json
+            git commit -m "chore: update versions.json for $VERSION" || echo "No changes to commit"
+            git push
+          fi
+
+  build-release:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    env:
+      PLUGIN_NAME: saved-reddit-exporter
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Package plugin
+        run: |
+          mkdir ${{ env.PLUGIN_NAME }}
+          cp main.js manifest.json ${{ env.PLUGIN_NAME }}
+          [ -f styles.css ] && cp styles.css ${{ env.PLUGIN_NAME }} || echo "No styles.css found, skipping"
+          zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
+
+      - name: Upload Release Assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ needs.release-please.outputs.tag_name }} \
+            ${{ env.PLUGIN_NAME }}.zip \
+            main.js \
+            manifest.json \
+            --clobber
+          # Upload styles.css only if it exists
+          [ -f styles.css ] && gh release upload ${{ needs.release-please.outputs.tag_name }} styles.css --clobber || true

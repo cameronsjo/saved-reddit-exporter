@@ -24,16 +24,19 @@ describe('RedditSavedSettingTab', () => {
       tokenExpiry: Date.now() + 3600000,
       username: 'testuser',
       fetchLimit: 100,
-      outputPath: 'reddit-saved',
+      saveLocation: 'Reddit Saved',
       skipExisting: true,
       autoUnsave: false,
-      downloadMedia: true,
       downloadImages: true,
       downloadGifs: true,
       downloadVideos: false,
-      mediaPath: 'assets/reddit',
-      oauthRedirectPort: 8080,
+      mediaFolder: 'Attachments',
+      oauthRedirectPort: 9638,
       importedIds: [],
+      showAdvancedSettings: false,
+      organizeBySubreddit: false,
+      exportPostComments: false,
+      commentUpvoteThreshold: 0,
     };
 
     mockSaveSettings = jest.fn().mockResolvedValue(undefined);
@@ -122,14 +125,14 @@ describe('RedditSavedSettingTab', () => {
       expect(mockSettings.skipExisting).toBe(!originalSkipExisting);
     });
 
-    it('should handle media path changes', () => {
-      const originalPath = mockSettings.mediaPath;
+    it('should handle media folder changes', () => {
+      const originalPath = mockSettings.mediaFolder;
 
-      // Simulate changing media path
-      mockSettings.mediaPath = 'new/media/path';
+      // Simulate changing media folder
+      mockSettings.mediaFolder = 'new/media/path';
 
-      expect(mockSettings.mediaPath).toBe('new/media/path');
-      expect(mockSettings.mediaPath).not.toBe(originalPath);
+      expect(mockSettings.mediaFolder).toBe('new/media/path');
+      expect(mockSettings.mediaFolder).not.toBe(originalPath);
     });
 
     it('should handle port number changes', () => {
@@ -218,16 +221,39 @@ describe('RedditSavedSettingTab', () => {
       expect(mockSettings.downloadVideos).toBe(true);
     });
 
-    it('should handle media path configuration', () => {
-      mockSettings.mediaPath = 'custom/media/path';
-      expect(mockSettings.mediaPath).toBe('custom/media/path');
+    it('should handle media folder configuration', () => {
+      mockSettings.mediaFolder = 'custom/media/path';
+      expect(mockSettings.mediaFolder).toBe('custom/media/path');
     });
   });
 
-  describe('output path settings', () => {
-    it('should handle output path changes', () => {
-      mockSettings.outputPath = 'custom/output';
-      expect(mockSettings.outputPath).toBe('custom/output');
+  describe('save location settings', () => {
+    it('should handle save location changes', () => {
+      mockSettings.saveLocation = 'custom/output';
+      expect(mockSettings.saveLocation).toBe('custom/output');
+    });
+  });
+
+  describe('new feature settings', () => {
+    it('should handle organize by subreddit toggle', () => {
+      expect(mockSettings.organizeBySubreddit).toBe(false);
+
+      mockSettings.organizeBySubreddit = true;
+      expect(mockSettings.organizeBySubreddit).toBe(true);
+    });
+
+    it('should handle export post comments toggle', () => {
+      expect(mockSettings.exportPostComments).toBe(false);
+
+      mockSettings.exportPostComments = true;
+      expect(mockSettings.exportPostComments).toBe(true);
+    });
+
+    it('should handle comment upvote threshold', () => {
+      expect(mockSettings.commentUpvoteThreshold).toBe(0);
+
+      mockSettings.commentUpvoteThreshold = 50;
+      expect(mockSettings.commentUpvoteThreshold).toBe(50);
     });
   });
 });

@@ -1,9 +1,9 @@
-import { RedditSavedSettings } from './types';
+import { RedditSavedSettings, FilterSettings, PostType } from './types';
 
 // OAuth Configuration
 export const DEFAULT_REDIRECT_PORT = 9638;
 export const OAUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-export const OAUTH_SCOPES = 'identity history read';
+export const OAUTH_SCOPES = 'identity history read save';
 export const OAUTH_DURATION = 'permanent';
 export const OAUTH_RESPONSE_TYPE = 'code';
 
@@ -76,6 +76,11 @@ export const MSG_OAUTH_TIMEOUT = 'OAuth server timed out. Please try authenticat
 export const MSG_RESCAN_VAULT = 'Rescanning vault for Reddit posts...';
 export const MSG_UNSAVING_ITEMS = 'Unsaving items...';
 export const MSG_FINISHED_UNSAVING = 'Finished unsaving items';
+export const MSG_FETCHING_UPVOTED = 'Fetching upvoted posts...';
+export const MSG_FETCHING_USER_POSTS = 'Fetching your submitted posts...';
+export const MSG_FETCHING_USER_COMMENTS = 'Fetching your comments...';
+export const MSG_NO_CONTENT_TYPES =
+  'No content types enabled. Enable at least one content type in settings.';
 
 // HTTP Headers
 export const HEADER_CONTENT_TYPE = 'Content-Type';
@@ -94,9 +99,61 @@ export const REDDIT_ITEM_TYPE_POST = 't3';
 // Frontmatter Types
 export const FRONTMATTER_TYPE_POST = 'reddit-post';
 export const FRONTMATTER_TYPE_COMMENT = 'reddit-comment';
+export const FRONTMATTER_TYPE_UPVOTED = 'reddit-upvoted';
+export const FRONTMATTER_TYPE_USER_POST = 'reddit-user-post';
+export const FRONTMATTER_TYPE_USER_COMMENT = 'reddit-user-comment';
+
+// Content Origin Labels
+export const CONTENT_ORIGIN_SAVED = 'saved';
+export const CONTENT_ORIGIN_UPVOTED = 'upvoted';
+export const CONTENT_ORIGIN_SUBMITTED = 'submitted';
+export const CONTENT_ORIGIN_COMMENTED = 'commented';
 
 // Backoff Configuration
 export const BACKOFF_MAX_DELAY_MS = 30000; // 30 seconds max backoff
+
+// Default Filter Settings
+export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
+  enabled: false,
+
+  // Subreddit filtering
+  subredditFilterMode: 'exclude',
+  subredditList: [],
+  subredditRegex: '',
+  useSubredditRegex: false,
+
+  // Content filtering
+  titleKeywords: [],
+  titleKeywordsMode: 'include',
+  contentKeywords: [],
+  contentKeywordsMode: 'include',
+  flairList: [],
+  flairFilterMode: 'include',
+
+  // Score filtering
+  minScore: null,
+  maxScore: null,
+  minUpvoteRatio: null,
+
+  // Post type filtering
+  includePostTypes: ['text', 'link', 'image', 'video'] as PostType[],
+  includeComments: true,
+  includePosts: true,
+
+  // Date range filtering
+  dateRangePreset: 'all',
+  dateRangeStart: null,
+  dateRangeEnd: null,
+
+  // Advanced filters
+  authorFilterMode: 'exclude',
+  authorList: [],
+  minCommentCount: null,
+  maxCommentCount: null,
+  domainFilterMode: 'exclude',
+  domainList: [],
+  excludeNsfw: false,
+};
 
 export const DEFAULT_SETTINGS: RedditSavedSettings = {
   clientId: '',
@@ -107,6 +164,7 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   username: '',
   saveLocation: DEFAULT_SAVE_LOCATION,
   autoUnsave: false,
+  unsaveMode: 'off',
   fetchLimit: REDDIT_MAX_ITEMS,
   importedIds: [],
   skipExisting: true,
@@ -116,6 +174,22 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   downloadGifs: false,
   downloadVideos: false,
   mediaFolder: DEFAULT_MEDIA_FOLDER,
+  // Content type defaults
+  importSavedPosts: true,
+  importSavedComments: true,
+  importUpvoted: false,
+  importUserPosts: false,
+  importUserComments: false,
+  // Crosspost defaults
+  importCrosspostOriginal: false,
+  preserveCrosspostMetadata: true,
+  // Organization defaults
+  organizeBySubreddit: false,
+  exportPostComments: false,
+  commentUpvoteThreshold: 0,
+  // Filter defaults
+  filterSettings: DEFAULT_FILTER_SETTINGS,
+  showFilterSettings: false,
   // Performance and reliability defaults
   enableEnhancedMode: true,
   enableCheckpointing: true,
@@ -124,3 +198,13 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   maxRetries: 3,
   enableOfflineQueue: true,
 };
+
+// Comment export defaults
+export const DEFAULT_COMMENT_UPVOTE_THRESHOLD = 0;
+export const MAX_COMMENT_DEPTH = 10; // Maximum depth of nested comments to fetch
+
+// Filter-related messages
+export const MSG_FILTER_PREVIEW = 'Preview mode: showing what would be imported...';
+export const MSG_FILTER_RESULTS = (imported: number, filtered: number, skipped: number) =>
+  `Would import ${imported}, filter ${filtered}, skip ${skipped} items`;
+export const MSG_INVALID_REGEX = 'Invalid regex pattern in filter settings';
