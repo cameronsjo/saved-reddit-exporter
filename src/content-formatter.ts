@@ -1,5 +1,18 @@
-import { RedditItemData, MediaInfo, RedditSavedSettings, RedditComment } from './types';
+import {
+  RedditItemData,
+  MediaInfo,
+  RedditSavedSettings,
+  ContentOrigin,
+  RedditComment,
+} from './types';
 import { MediaHandler } from './media-handler';
+import {
+  FRONTMATTER_TYPE_POST,
+  FRONTMATTER_TYPE_COMMENT,
+  FRONTMATTER_TYPE_UPVOTED,
+  FRONTMATTER_TYPE_USER_POST,
+  FRONTMATTER_TYPE_USER_COMMENT,
+} from './constants';
 
 export class ContentFormatter {
   private settings: RedditSavedSettings;
@@ -10,40 +23,100 @@ export class ContentFormatter {
     this.mediaHandler = mediaHandler;
   }
 
+  /**
+   * Determine the frontmatter type based on content origin and item type
+   */
+  private getFrontmatterType(isComment: boolean, contentOrigin: ContentOrigin): string {
+    switch (contentOrigin) {
+      case 'upvoted':
+        return FRONTMATTER_TYPE_UPVOTED;
+      case 'submitted':
+        return isComment ? FRONTMATTER_TYPE_USER_COMMENT : FRONTMATTER_TYPE_USER_POST;
+      case 'commented':
+        return FRONTMATTER_TYPE_USER_COMMENT;
+      case 'saved':
+      default:
+        return isComment ? FRONTMATTER_TYPE_COMMENT : FRONTMATTER_TYPE_POST;
+    }
+  }
+
+  /**
+   * Get a human-readable label for the content origin
+   */
+  private getOriginLabel(contentOrigin: ContentOrigin): string {
+    switch (contentOrigin) {
+      case 'upvoted':
+        return 'Upvoted';
+      case 'submitted':
+        return 'Your Post';
+      case 'commented':
+        return 'Your Comment';
+      case 'saved':
+      default:
+        return 'Saved';
+    }
+  }
+
+  /**
+   * Check if the item should be treated as saved (for compatibility)
+   */
+  private isSavedContent(contentOrigin: ContentOrigin): boolean {
+    return contentOrigin === 'saved';
+  }
+
   async formatRedditContent(
     data: RedditItemData,
     isComment: boolean,
+    contentOrigin: ContentOrigin = 'saved',
     comments: RedditComment[] = []
   ): Promise<string> {
     const created = new Date(data.created_utc * 1000).toISOString();
     const createdDate = new Date(data.created_utc * 1000).toLocaleDateString();
     const mediaInfo = this.mediaHandler.analyzeMedia(data);
 
+    // Handle crosspost - use original if enabled
+    const effectiveData = this.getEffectiveData(data);
+    const isCrosspost = this.isCrosspost(data);
+
     let content = `---\n`;
-    content += `type: ${isComment ? 'reddit-comment' : 'reddit-post'}\n`;
-    content += `subreddit: ${data.subreddit}\n`;
-    content += `author: ${data.author}\n`;
+    content += `type: ${this.getFrontmatterType(isComment, contentOrigin)}\n`;
+    content += `content_origin: ${contentOrigin}\n`;
+    content += `subreddit: ${effectiveData.subreddit}\n`;
+    content += `author: ${effectiveData.author}\n`;
     content += `created: ${created}\n`;
     content += `date: ${createdDate}\n`;
-    content += `permalink: https://reddit.com${data.permalink}\n`;
+    content += `permalink: https://reddit.com${effectiveData.permalink}\n`;
     content += `id: ${data.id}\n`;
-    content += `saved: true\n`;
+
+    // Only add saved: true for saved content
+    if (this.isSavedContent(contentOrigin)) {
+      content += `saved: true\n`;
+    }
+
+    // Add crosspost metadata if enabled and applicable
+    if (isCrosspost && this.settings.preserveCrosspostMetadata) {
+      content += `is_crosspost: true\n`;
+      content += `crosspost_subreddit: ${data.subreddit}\n`;
+      content += `original_subreddit: ${data.crosspost_parent_list![0].subreddit}\n`;
+      content += `original_author: ${data.crosspost_parent_list![0].author}\n`;
+      content += `original_id: ${data.crosspost_parent_list![0].id}\n`;
+    }
 
     if (!isComment) {
-      content += `title: "${data.title!.replace(/"/g, '\\"')}"\n`;
+      content += `title: "${effectiveData.title!.replace(/"/g, '\\"')}"\n`;
       content += `score: ${data.score}\n`;
       content += `num_comments: ${data.num_comments}\n`;
       content += `upvote_ratio: ${data.upvote_ratio || 'unknown'}\n`;
 
-      if (data.link_flair_text) {
-        content += `flair: "${data.link_flair_text.replace(/"/g, '\\"')}"\n`;
+      if (effectiveData.link_flair_text) {
+        content += `flair: "${effectiveData.link_flair_text.replace(/"/g, '\\"')}"\n`;
       }
 
-      if (data.is_self) {
+      if (effectiveData.is_self) {
         content += `post_type: text\n`;
-      } else if (data.url) {
+      } else if (effectiveData.url) {
         content += `post_type: ${mediaInfo.type}\n`;
-        content += `url: ${data.url}\n`;
+        content += `url: ${effectiveData.url}\n`;
         if (mediaInfo.domain) {
           content += `domain: ${mediaInfo.domain}\n`;
         }
@@ -52,8 +125,8 @@ export class ContentFormatter {
       // Add media-specific metadata
       if (mediaInfo.isMedia) {
         content += `media_type: ${mediaInfo.mediaType}\n`;
-        if (data.preview?.images?.[0]?.source?.url) {
-          content += `thumbnail: ${data.preview.images[0].source.url.replace(/&amp;/g, '&')}\n`;
+        if (effectiveData.preview?.images?.[0]?.source?.url) {
+          content += `thumbnail: ${effectiveData.preview.images[0].source.url.replace(/&amp;/g, '&')}\n`;
         }
       }
 
@@ -70,13 +143,19 @@ export class ContentFormatter {
     content += `---\n\n`;
 
     if (isComment) {
-      content += this.formatCommentHeader(data);
+      content += this.formatCommentHeader(data, contentOrigin);
     } else {
-      content += await this.formatPostHeader(data, mediaInfo);
+      content += await this.formatPostHeader(
+        effectiveData,
+        mediaInfo,
+        contentOrigin,
+        isCrosspost,
+        data
+      );
     }
 
-    if (data.selftext || data.body) {
-      content += this.convertRedditMarkdown(data.selftext || data.body || '');
+    if (effectiveData.selftext || data.body) {
+      content += this.convertRedditMarkdown(effectiveData.selftext || data.body || '');
     }
 
     // Add comments section if comments were exported
@@ -84,9 +163,34 @@ export class ContentFormatter {
       content += this.formatCommentsSection(comments, data.author);
     }
 
-    content += this.formatFooter(data, isComment);
+    content += this.formatFooter(effectiveData, isComment, contentOrigin);
 
     return content;
+  }
+
+  /**
+   * Check if the item is a crosspost
+   */
+  private isCrosspost(data: RedditItemData): boolean {
+    return !!(
+      data.crosspost_parent &&
+      data.crosspost_parent_list &&
+      data.crosspost_parent_list.length > 0
+    );
+  }
+
+  /**
+   * Get the effective data to use (original post for crossposts if enabled)
+   */
+  private getEffectiveData(data: RedditItemData): RedditItemData {
+    if (
+      this.settings.importCrosspostOriginal &&
+      data.crosspost_parent_list &&
+      data.crosspost_parent_list.length > 0
+    ) {
+      return data.crosspost_parent_list[0];
+    }
+    return data;
   }
 
   private countTotalComments(comments: RedditComment[]): number {
@@ -139,17 +243,32 @@ export class ContentFormatter {
     return content;
   }
 
-  private async formatPostHeader(data: RedditItemData, mediaInfo: MediaInfo): Promise<string> {
+  private async formatPostHeader(
+    data: RedditItemData,
+    mediaInfo: MediaInfo,
+    contentOrigin: ContentOrigin = 'saved',
+    isCrosspost: boolean = false,
+    originalData?: RedditItemData
+  ): Promise<string> {
     let content = '';
 
+    // Origin badge
+    const originLabel = this.getOriginLabel(contentOrigin);
+    content += `> ${this.getOriginEmoji(contentOrigin)} **${originLabel}** • `;
+
     // Subreddit badge
-    content += `> **r/${data.subreddit}** `;
+    content += `**r/${data.subreddit}** `;
     if (data.link_flair_text) {
       content += `• \`${data.link_flair_text}\` `;
     }
     content += `• 👤 u/${data.author} `;
     content += `• ⬆️ ${data.score} `;
     content += `• 💬 ${data.num_comments}\n\n`;
+
+    // Crosspost notice
+    if (isCrosspost && this.settings.preserveCrosspostMetadata && originalData) {
+      content += `> 🔄 **Crosspost** from r/${originalData.subreddit} by u/${originalData.crosspost_parent_list?.[0]?.author || 'unknown'}\n\n`;
+    }
 
     // Title
     content += `# ${data.title}\n\n`;
@@ -164,11 +283,35 @@ export class ContentFormatter {
     return content;
   }
 
-  private formatCommentHeader(data: RedditItemData): string {
+  /**
+   * Get emoji for content origin
+   */
+  private getOriginEmoji(contentOrigin: ContentOrigin): string {
+    switch (contentOrigin) {
+      case 'upvoted':
+        return '👍';
+      case 'submitted':
+        return '📝';
+      case 'commented':
+        return '💬';
+      case 'saved':
+      default:
+        return '🔖';
+    }
+  }
+
+  private formatCommentHeader(
+    data: RedditItemData,
+    contentOrigin: ContentOrigin = 'saved'
+  ): string {
     let content = '';
 
+    // Origin badge
+    const originLabel = this.getOriginLabel(contentOrigin);
+    content += `> ${this.getOriginEmoji(contentOrigin)} **${originLabel}** • `;
+
     // Parent post context
-    content += `> **r/${data.subreddit}** • 👤 u/${data.author} `;
+    content += `**r/${data.subreddit}** • 👤 u/${data.author} `;
     if (data.is_submitter) {
       content += `👑 **OP** `;
     }
@@ -267,7 +410,11 @@ export class ContentFormatter {
     return content;
   }
 
-  private formatFooter(data: RedditItemData, isComment: boolean): string {
+  private formatFooter(
+    data: RedditItemData,
+    isComment: boolean,
+    contentOrigin: ContentOrigin = 'saved'
+  ): string {
     let content = '\n\n---\n\n';
 
     // Tags for organization
@@ -275,6 +422,11 @@ export class ContentFormatter {
     if (data.link_flair_text) {
       tags.push(`#${data.link_flair_text.toLowerCase().replace(/\s+/g, '-')}`);
     }
+
+    // Add content origin tag
+    tags.push(`#reddit-${contentOrigin}`);
+
+    // Add type tag
     if (isComment) {
       tags.push('#reddit-comment');
     } else {

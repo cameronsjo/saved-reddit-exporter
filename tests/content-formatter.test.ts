@@ -447,7 +447,7 @@ describe('ContentFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatRedditContent(postData, false, comments);
+      const result = await formatter.formatRedditContent(postData, false, 'saved', comments);
 
       expect(result).toContain('## 💬 Top Comments');
       expect(result).toContain('**u/commenter1**');
@@ -495,7 +495,7 @@ describe('ContentFormatter', () => {
         },
       ];
 
-      const result = await formatter.formatRedditContent(postData, false, comments);
+      const result = await formatter.formatRedditContent(postData, false, 'saved', comments);
 
       expect(result).toContain('Parent comment');
       expect(result).toContain('Reply to parent');
@@ -529,7 +529,7 @@ describe('ContentFormatter', () => {
       ];
 
       // Even if comments are passed, they should not be included for saved comments
-      const result = await formatter.formatRedditContent(commentData, true, comments);
+      const result = await formatter.formatRedditContent(commentData, true, 'saved', comments);
 
       expect(result).not.toContain('## 💬 Top Comments');
       expect(result).toContain('type: reddit-comment');

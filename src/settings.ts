@@ -93,6 +93,96 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
     }
 
+    // Content Types Section
+    new Setting(containerEl).setName('Content types').setHeading();
+
+    const contentTypesInfo = containerEl.createDiv();
+    contentTypesInfo.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '10px',
+      borderRadius: '4px',
+      marginBottom: '15px',
+    });
+
+    contentTypesInfo.createEl('strong', { text: 'ℹ️ Choose what to import' });
+    contentTypesInfo.createEl('br');
+    contentTypesInfo.createSpan({
+      text: 'Select the types of Reddit content you want to import to your vault.',
+    });
+
+    new Setting(containerEl)
+      .setName('Saved posts')
+      .setDesc('Import posts you have saved on Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importSavedPosts).onChange(async value => {
+          this.settings.importSavedPosts = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Saved comments')
+      .setDesc('Import comments you have saved on Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importSavedComments).onChange(async value => {
+          this.settings.importSavedComments = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Upvoted posts')
+      .setDesc('Import posts you have upvoted')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUpvoted).onChange(async value => {
+          this.settings.importUpvoted = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Your posts')
+      .setDesc('Import posts you have submitted to Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUserPosts).onChange(async value => {
+          this.settings.importUserPosts = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Your comments')
+      .setDesc('Import comments you have posted on Reddit')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUserComments).onChange(async value => {
+          this.settings.importUserComments = value;
+          await this.saveSettings();
+        })
+      );
+
+    // Crosspost Settings
+    new Setting(containerEl).setName('Crosspost handling').setHeading();
+
+    new Setting(containerEl)
+      .setName('Import original post')
+      .setDesc('When a post is a crosspost, import the original post instead of the crosspost')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importCrosspostOriginal).onChange(async value => {
+          this.settings.importCrosspostOriginal = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Preserve crosspost metadata')
+      .setDesc('Keep information about crosspost relationships in the frontmatter')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.preserveCrosspostMetadata).onChange(async value => {
+          this.settings.preserveCrosspostMetadata = value;
+          await this.saveSettings();
+        })
+      );
+
     new Setting(containerEl).setName('Import settings').setHeading();
 
     // Rate limiting info
@@ -106,7 +196,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API limits' });
     rateLimitInfo.createEl('br');
-    rateLimitInfo.createSpan({ text: '• Maximum 1,000 saved items can be fetched' });
+    rateLimitInfo.createSpan({ text: '• Maximum 1,000 items per content type can be fetched' });
     rateLimitInfo.createEl('br');
     rateLimitInfo.createSpan({ text: '• Rate limiting applies (60 requests/minute)' });
     rateLimitInfo.createEl('br');

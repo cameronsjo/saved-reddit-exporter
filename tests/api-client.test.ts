@@ -32,6 +32,15 @@ describe('RedditApiClient', () => {
       oauthRedirectPort: 9638,
       importedIds: [],
       showAdvancedSettings: false,
+      // Content type settings
+      importSavedPosts: true,
+      importSavedComments: true,
+      importUpvoted: false,
+      importUserPosts: false,
+      importUserComments: false,
+      importCrosspostOriginal: false,
+      preserveCrosspostMetadata: true,
+      // Organization settings
       organizeBySubreddit: false,
       exportPostComments: false,
       commentUpvoteThreshold: 0,
@@ -181,7 +190,12 @@ describe('RedditApiClient', () => {
       mockRequestUrl.mockResolvedValue(mockResponse);
 
       const result = await client.fetchAllSaved();
-      expect(result).toEqual(mockItems);
+      // Items now include contentOrigin
+      expect(result).toHaveLength(mockItems.length);
+      expect(result[0]).toMatchObject({
+        ...mockItems[0],
+        contentOrigin: 'saved',
+      });
       expect(mockEnsureValidToken).toHaveBeenCalled();
       expect(mockRequestUrl).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -260,7 +274,16 @@ describe('RedditApiClient', () => {
 
       const result = await client.fetchAllSaved();
       expect(mockRequestUrl).toHaveBeenCalledTimes(2);
-      expect(result).toEqual([...mockItems1, ...mockItems2]);
+      // Items now include contentOrigin
+      expect(result).toHaveLength(mockItems1.length + mockItems2.length);
+      expect(result[0]).toMatchObject({
+        ...mockItems1[0],
+        contentOrigin: 'saved',
+      });
+      expect(result[100]).toMatchObject({
+        ...mockItems2[0],
+        contentOrigin: 'saved',
+      });
 
       // Restore setTimeout
       jest.restoreAllMocks();
@@ -312,7 +335,11 @@ describe('RedditApiClient', () => {
 
       const result = await client.fetchAllSaved();
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual(mockItems[0]);
+      // Items now include contentOrigin
+      expect(result[0]).toMatchObject({
+        ...mockItems[0],
+        contentOrigin: 'saved',
+      });
     });
   });
 

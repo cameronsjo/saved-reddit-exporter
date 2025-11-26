@@ -76,6 +76,11 @@ export const MSG_OAUTH_TIMEOUT = 'OAuth server timed out. Please try authenticat
 export const MSG_RESCAN_VAULT = 'Rescanning vault for Reddit posts...';
 export const MSG_UNSAVING_ITEMS = 'Unsaving items...';
 export const MSG_FINISHED_UNSAVING = 'Finished unsaving items';
+export const MSG_FETCHING_UPVOTED = 'Fetching upvoted posts...';
+export const MSG_FETCHING_USER_POSTS = 'Fetching your submitted posts...';
+export const MSG_FETCHING_USER_COMMENTS = 'Fetching your comments...';
+export const MSG_NO_CONTENT_TYPES =
+  'No content types enabled. Enable at least one content type in settings.';
 
 // HTTP Headers
 export const HEADER_CONTENT_TYPE = 'Content-Type';
@@ -94,6 +99,15 @@ export const REDDIT_ITEM_TYPE_POST = 't3';
 // Frontmatter Types
 export const FRONTMATTER_TYPE_POST = 'reddit-post';
 export const FRONTMATTER_TYPE_COMMENT = 'reddit-comment';
+export const FRONTMATTER_TYPE_UPVOTED = 'reddit-upvoted';
+export const FRONTMATTER_TYPE_USER_POST = 'reddit-user-post';
+export const FRONTMATTER_TYPE_USER_COMMENT = 'reddit-user-comment';
+
+// Content Origin Labels
+export const CONTENT_ORIGIN_SAVED = 'saved';
+export const CONTENT_ORIGIN_UPVOTED = 'upvoted';
+export const CONTENT_ORIGIN_SUBMITTED = 'submitted';
+export const CONTENT_ORIGIN_COMMENTED = 'commented';
 
 // Backoff Configuration
 export const BACKOFF_MAX_DELAY_MS = 30000; // 30 seconds max backoff
@@ -117,6 +131,16 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   downloadGifs: false,
   downloadVideos: false,
   mediaFolder: DEFAULT_MEDIA_FOLDER,
+  // Content type defaults
+  importSavedPosts: true,
+  importSavedComments: true,
+  importUpvoted: false,
+  importUserPosts: false,
+  importUserComments: false,
+  // Crosspost defaults
+  importCrosspostOriginal: false,
+  preserveCrosspostMetadata: true,
+  // Organization defaults
   organizeBySubreddit: false,
   exportPostComments: false,
   commentUpvoteThreshold: 0,
