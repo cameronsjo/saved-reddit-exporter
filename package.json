@@ -9,7 +9,6 @@
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
     "build:local": "npm run build && node scripts/copy-to-vault.mjs",
     "copy": "node scripts/copy-to-vault.mjs",
-    "version": "node scripts/version-bump.mjs",
     "lint": "eslint src/**/*.ts tests/**/*.ts",
     "lint:fix": "eslint src/**/*.ts tests/**/*.ts --fix",
     "lint:security": "eslint src/**/*.ts --config .eslintrc.json --no-eslintrc",
@@ -21,7 +20,9 @@
     "test:coverage": "jest --coverage",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "prepare": "husky",
-    "pre-commit": "lint-staged"
+    "pre-commit": "lint-staged",
+    "release:beta": "node scripts/release-beta.mjs",
+    "release:check": "node -e \"const m=require('./manifest.json');const p=require('./package.json');console.log('manifest.json:',m.version);console.log('package.json:',p.version);console.log(m.version===p.version?'✅ Versions match':'⚠️  Versions differ (OK if release-please PR pending)');\""
   },
   "keywords": [
     "obsidian",
@@ -33,6 +34,8 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@types/jest": "^29.5.12",
     "@types/node": "^16.11.6",
     "@typescript-eslint/eslint-plugin": "^6.21.0",

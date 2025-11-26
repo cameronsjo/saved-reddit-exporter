@@ -24,19 +24,56 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need full history for tag check
+
       - name: Validate version format
         run: |
           VERSION="${{ github.event.inputs.version }}"
           # Check version matches semver with pre-release suffix
           if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
-            echo "Error: Version must be in format X.Y.Z-beta.N (e.g., 1.2.0-beta.1)"
+            echo "::error::Version must be in format X.Y.Z-beta.N (e.g., 1.2.0-beta.1)"
             echo "Valid prefixes: alpha, beta, rc"
             exit 1
           fi
-          echo "Version format valid: $VERSION"
+          echo "✅ Version format valid: $VERSION"
+
+      - name: Check tag doesn't already exist
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists! Use a different version number."
+            exit 1
+          fi
+          echo "✅ Tag $VERSION is available"
+
+  test:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Type check
+        run: npm run type-check
 
   build-beta:
-    needs: validate
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

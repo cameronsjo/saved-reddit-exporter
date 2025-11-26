@@ -10,6 +10,74 @@ permissions:
   contents: read
 
 jobs:
+  # Validate Obsidian plugin files are correct
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate manifest.json
+        run: |
+          echo "Checking manifest.json..."
+
+          # Check required fields exist
+          for field in id name version minAppVersion description author; do
+            if ! jq -e ".$field" manifest.json > /dev/null 2>&1; then
+              echo "❌ Missing required field: $field"
+              exit 1
+            fi
+          done
+
+          # Check version format (no v prefix, valid semver-ish)
+          VERSION=$(jq -r '.version' manifest.json)
+          if [[ "$VERSION" =~ ^v ]]; then
+            echo "❌ Version should not have 'v' prefix: $VERSION"
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "❌ Invalid version format: $VERSION (expected X.Y.Z)"
+            exit 1
+          fi
+
+          echo "✅ manifest.json is valid (version: $VERSION)"
+
+      - name: Validate versions.json
+        run: |
+          echo "Checking versions.json..."
+
+          # Check it's valid JSON
+          if ! jq empty versions.json 2>/dev/null; then
+            echo "❌ versions.json is not valid JSON"
+            exit 1
+          fi
+
+          # Check format: all keys should be semver, all values should be semver
+          jq -r 'to_entries[] | "\(.key) \(.value)"' versions.json | while read plugin_ver obsidian_ver; do
+            if [[ ! "$plugin_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              echo "❌ Invalid plugin version: $plugin_ver"
+              exit 1
+            fi
+            if [[ ! "$obsidian_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              echo "❌ Invalid Obsidian version for $plugin_ver: $obsidian_ver"
+              exit 1
+            fi
+          done
+
+          echo "✅ versions.json is valid"
+
+      - name: Check version consistency
+        run: |
+          MANIFEST_VER=$(jq -r '.version' manifest.json)
+          PACKAGE_VER=$(jq -r '.version' package.json)
+
+          if [ "$MANIFEST_VER" != "$PACKAGE_VER" ]; then
+            echo "⚠️  Version mismatch (this is OK if release-please PR is pending):"
+            echo "   manifest.json: $MANIFEST_VER"
+            echo "   package.json:  $PACKAGE_VER"
+          else
+            echo "✅ Versions match: $MANIFEST_VER"
+          fi
+
   test:
     runs-on: ubuntu-latest
     
