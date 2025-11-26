@@ -178,6 +178,47 @@ export class RedditSavedSettingTab extends PluginSettingTab {
           })
       );
 
+    new Setting(containerEl)
+      .setName('Organize by subreddit')
+      .setDesc('Create subfolders for each subreddit (e.g., Reddit Saved/obsidian/)')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
+          this.settings.organizeBySubreddit = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl).setName('Comment export settings').setHeading();
+
+    new Setting(containerEl)
+      .setName('Export post comments')
+      .setDesc('Include top comments when exporting saved posts')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.exportPostComments).onChange(async value => {
+          this.settings.exportPostComments = value;
+          await this.saveSettings();
+          this.display(); // Refresh to show/hide threshold setting
+        })
+      );
+
+    if (this.settings.exportPostComments) {
+      new Setting(containerEl)
+        .setName('Comment upvote threshold')
+        .setDesc('Minimum upvotes required for a comment to be included (0 = include all)')
+        .addText(text =>
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.settings.commentUpvoteThreshold))
+            .onChange(async value => {
+              const num = parseInt(value);
+              if (!isNaN(num) && num >= 0) {
+                this.settings.commentUpvoteThreshold = num;
+                await this.saveSettings();
+              }
+            })
+        );
+    }
+
     // Advanced Settings Section
     new Setting(containerEl).setName('Advanced settings').setHeading();
 

@@ -1,4 +1,4 @@
-import { RedditItemData, MediaInfo, RedditSavedSettings } from './types';
+import { RedditItemData, MediaInfo, RedditSavedSettings, RedditComment } from './types';
 import { MediaHandler } from './media-handler';
 
 export class ContentFormatter {
@@ -10,7 +10,11 @@ export class ContentFormatter {
     this.mediaHandler = mediaHandler;
   }
 
-  async formatRedditContent(data: RedditItemData, isComment: boolean): Promise<string> {
+  async formatRedditContent(
+    data: RedditItemData,
+    isComment: boolean,
+    comments: RedditComment[] = []
+  ): Promise<string> {
     const created = new Date(data.created_utc * 1000).toISOString();
     const createdDate = new Date(data.created_utc * 1000).toLocaleDateString();
     const mediaInfo = this.mediaHandler.analyzeMedia(data);
@@ -52,6 +56,11 @@ export class ContentFormatter {
           content += `thumbnail: ${data.preview.images[0].source.url.replace(/&amp;/g, '&')}\n`;
         }
       }
+
+      // Add comments metadata if comments were exported
+      if (comments.length > 0) {
+        content += `exported_comments: ${this.countTotalComments(comments)}\n`;
+      }
     } else {
       content += `post_title: "${(data.link_title || '').replace(/"/g, '\\"')}"\n`;
       content += `score: ${data.score}\n`;
@@ -70,7 +79,62 @@ export class ContentFormatter {
       content += this.convertRedditMarkdown(data.selftext || data.body || '');
     }
 
+    // Add comments section if comments were exported
+    if (!isComment && comments.length > 0) {
+      content += this.formatCommentsSection(comments, data.author);
+    }
+
     content += this.formatFooter(data, isComment);
+
+    return content;
+  }
+
+  private countTotalComments(comments: RedditComment[]): number {
+    let count = comments.length;
+    for (const comment of comments) {
+      if (comment.replies) {
+        count += this.countTotalComments(comment.replies);
+      }
+    }
+    return count;
+  }
+
+  private formatCommentsSection(comments: RedditComment[], postAuthor: string): string {
+    let content = '\n\n---\n\n## 💬 Top Comments\n\n';
+
+    for (const comment of comments) {
+      content += this.formatSingleComment(comment, postAuthor);
+    }
+
+    return content;
+  }
+
+  private formatSingleComment(
+    comment: RedditComment,
+    postAuthor: string,
+    indent: number = 0
+  ): string {
+    const indentStr = '> '.repeat(indent);
+    const isOP = comment.author === postAuthor;
+    const opBadge = isOP ? ' 👑 **OP**' : '';
+    const date = new Date(comment.created_utc * 1000).toLocaleDateString();
+
+    let content = `${indentStr}**u/${comment.author}**${opBadge} • ⬆️ ${comment.score} • ${date}\n`;
+    content += `${indentStr}\n`;
+
+    // Format comment body with proper indentation
+    const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+    for (const line of bodyLines) {
+      content += `${indentStr}${line}\n`;
+    }
+    content += '\n';
+
+    // Format nested replies
+    if (comment.replies && comment.replies.length > 0) {
+      for (const reply of comment.replies) {
+        content += this.formatSingleComment(reply, postAuthor, indent + 1);
+      }
+    }
 
     return content;
   }

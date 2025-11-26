@@ -117,4 +117,11 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   downloadGifs: false,
   downloadVideos: false,
   mediaFolder: DEFAULT_MEDIA_FOLDER,
+  organizeBySubreddit: false,
+  exportPostComments: false,
+  commentUpvoteThreshold: 0,
 };
+
+// Comment export defaults
+export const DEFAULT_COMMENT_UPVOTE_THRESHOLD = 0;
+export const MAX_COMMENT_DEPTH = 10; // Maximum depth of nested comments to fetch

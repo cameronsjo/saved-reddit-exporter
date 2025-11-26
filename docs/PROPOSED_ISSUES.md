@@ -17,6 +17,7 @@ AI assistants like Claude, ChatGPT, and Cursor are increasingly being used along
 
 **Proposed Solution:**
 Implement an MCP (Model Context Protocol) server mode that exposes imported Reddit content as resources. This would allow AI assistants to:
+
 - Search across saved Reddit posts by topic, subreddit, or content
 - Retrieve full post content and metadata
 - Understand the user's saved content knowledge base
@@ -24,6 +25,7 @@ Implement an MCP (Model Context Protocol) server mode that exposes imported Redd
 Implementation could leverage the existing Local REST API plugin pattern or implement a standalone MCP server following the [MCP specification](https://modelcontextprotocol.io/).
 
 **Alternatives Considered:**
+
 - Relying on third-party MCP servers (less integrated, requires separate setup)
 - Using Dataview queries piped to AI (manual, not real-time)
 
@@ -49,6 +51,7 @@ Obsidian 1.10 introduced Bases - a powerful database-like view for notes. While 
 
 **Proposed Solution:**
 Create a custom Bases view plugin using the new [Bases API](https://docs.obsidian.md/plugins/guides/bases-view) that provides:
+
 - Reddit-optimized card/table/timeline layouts
 - Pre-configured columns for Reddit metadata (score, subreddit, author)
 - Subreddit grouping with icons/colors
@@ -58,6 +61,7 @@ Create a custom Bases view plugin using the new [Bases API](https://docs.obsidia
 Reference implementation: [obsidian-maps](https://github.com/obsidianmd/obsidian-maps) demonstrates Bases API usage.
 
 **Alternatives Considered:**
+
 - Providing Dataview query examples (less visual, requires user setup)
 - Using standard Bases views (works but not optimized for Reddit metadata)
 
@@ -83,17 +87,20 @@ Currently, posts are only tagged by subreddit and flair. However, content often 
 
 **Proposed Solution:**
 Integrate with Obsidian AI plugins (Smart Connections, Copilot, or local LLMs) to:
+
 - Generate semantic tags based on actual content
 - Create topic clusters across subreddits
 - Suggest connections to existing vault notes
 - Generate concise titles for posts with overly long/vague titles
 
 Configuration options:
+
 - Choose AI provider (OpenAI, Ollama, existing Obsidian AI plugin)
 - Custom prompt templates for categorization
 - Tag prefix to distinguish AI-generated tags
 
 **Alternatives Considered:**
+
 - Keyword extraction (less accurate, no semantic understanding)
 - Manual tagging (time-consuming, inconsistent)
 
@@ -119,6 +126,7 @@ The current workflow requires users to: 1) Save on Reddit, 2) Open Obsidian, 3) 
 
 **Proposed Solution:**
 Create a companion browser extension that:
+
 - Adds a "Save to Obsidian" button on Reddit posts/comments
 - Sends content directly to Obsidian via URI scheme or Local REST API
 - Works alongside Reddit's native save (optional)
@@ -128,6 +136,7 @@ Create a companion browser extension that:
 Platforms: Chrome, Firefox, Safari (via WebExtension APIs)
 
 **Alternatives Considered:**
+
 - Obsidian Web Clipper (generic, not Reddit-optimized)
 - Bookmarklet approach (limited functionality)
 - Mobile share sheet integration (iOS/Android only)
@@ -151,6 +160,7 @@ While browsing Reddit, users click the extension icon on any post to immediately
 
 **Problem Description:**
 Many Reddit posts have titles that are:
+
 - Too long (100+ characters, truncated in file explorers)
 - Vague or clickbait ("This is amazing", "Help please")
 - Questions that don't summarize the actual answer/content
@@ -159,6 +169,7 @@ This makes it hard to find content later when browsing the vault.
 
 **Proposed Solution:**
 Add an option to generate concise, descriptive titles using AI:
+
 - Integrate with existing Obsidian AI plugins (Smart Connections, Text Generator, Copilot)
 - Provide fallback to OpenAI/Ollama API directly
 - Store original title in frontmatter, use summary as filename
@@ -166,10 +177,12 @@ Add an option to generate concise, descriptive titles using AI:
 - Option to run on import or batch-process existing imports
 
 Example:
+
 - Original: "I've been programming for 15 years and here's what I wish someone told me when I started, especially about debugging and code reviews"
 - Summary: "15-Year Dev Advice - Debugging and Code Reviews"
 
 **Alternatives Considered:**
+
 - Simple truncation (loses meaning)
 - Keyword extraction (not human-readable)
 - Manual renaming (time-consuming)
@@ -196,6 +209,7 @@ Currently, releases require manual version bumping in `package.json`, `manifest.
 
 **Proposed Solution:**
 Implement [release-please](https://github.com/google-github-actions/release-please-action) GitHub Action to:
+
 - Automatically detect version bumps from conventional commits
 - Generate changelogs from commit messages
 - Create release PRs with version updates

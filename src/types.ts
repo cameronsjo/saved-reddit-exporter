@@ -19,6 +19,9 @@ export interface RedditSavedSettings {
   downloadGifs: boolean; // Download GIF files
   downloadVideos: boolean; // Download video files
   mediaFolder: string; // Folder for downloaded media
+  organizeBySubreddit: boolean; // Organize exports into subreddit subfolders
+  exportPostComments: boolean; // Export comments from saved posts
+  commentUpvoteThreshold: number; // Minimum upvotes for comments to be included
 }
 
 export interface MediaInfo {
@@ -69,4 +72,15 @@ export interface RedditItemData {
       };
     }>;
   };
+}
+
+export interface RedditComment {
+  id: string;
+  author: string;
+  body: string;
+  score: number;
+  created_utc: number;
+  is_submitter: boolean;
+  depth: number;
+  replies?: RedditComment[];
 }
