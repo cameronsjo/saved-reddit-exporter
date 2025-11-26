@@ -1,5 +1,11 @@
 import { Notice, Plugin } from 'obsidian';
-import { RedditSavedSettings, ImportResult, RedditItem, ContentOrigin } from './types';
+import {
+  RedditSavedSettings,
+  ImportResult,
+  RedditItem,
+  ContentOrigin,
+  RedditComment,
+} from './types';
 import {
   DEFAULT_SETTINGS,
   REDDIT_ITEM_TYPE_COMMENT,
@@ -14,7 +20,8 @@ import { RedditApiClient } from './api-client';
 import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
-import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
+import { UnsaveSelectionModal, AutoUnsaveConfirmModal } from './unsave-modal';
+import { sanitizeFileName, isPathSafe, sanitizeSubredditName } from './utils/file-sanitizer';
 
 export default class RedditSavedPlugin extends Plugin {
   settings: RedditSavedSettings;
@@ -75,7 +82,14 @@ export default class RedditSavedPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const savedData = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, savedData);
+
+    // Migration: convert old autoUnsave boolean to new unsaveMode
+    if (savedData && savedData.autoUnsave && !savedData.unsaveMode) {
+      this.settings.unsaveMode = 'auto';
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -171,14 +185,14 @@ export default class RedditSavedPlugin extends Plugin {
         new Notice(`Successfully imported ${result.imported} items`);
       }
 
-      if (this.settings.autoUnsave && savedItemsForUnsave.length > 0) {
-        // Only unsave saved items (not upvoted or user content)
-        const itemsToUnsave = savedItemsForUnsave.filter(_item => {
-          return !this.settings.skipExisting || result.imported > 0;
-        });
-        if (itemsToUnsave.length > 0) {
-          await this.apiClient.unsaveItems(itemsToUnsave);
-        }
+      // Handle unsave based on mode (only for saved items, not upvoted/user content)
+      const savedItemsToUnsave = result.importedItems.filter(
+        (item: RedditItem) =>
+          (item as RedditItem & { contentOrigin?: ContentOrigin }).contentOrigin === 'saved' ||
+          !(item as RedditItem & { contentOrigin?: ContentOrigin }).contentOrigin
+      );
+      if (savedItemsToUnsave.length > 0) {
+        await this.handleUnsave(savedItemsToUnsave);
       }
     } catch (error) {
       console.error('Error fetching posts:', error);
@@ -199,6 +213,31 @@ export default class RedditSavedPlugin extends Plugin {
       seen.add(item.data.id);
       return true;
     });
+  }
+
+  private async handleUnsave(importedItems: RedditItem[]): Promise<void> {
+    switch (this.settings.unsaveMode) {
+      case 'auto':
+        // Show confirmation before auto-unsaving
+        new AutoUnsaveConfirmModal(this.app, importedItems.length, async () => {
+          await this.apiClient.unsaveItems(importedItems);
+        }).open();
+        break;
+
+      case 'prompt':
+        // Show selection modal for user to choose which items to unsave
+        // The callback receives items one at a time for per-item progress tracking
+        new UnsaveSelectionModal(this.app, importedItems, async (selectedItems: RedditItem[]) => {
+          // This is called per-item from the modal for progress tracking
+          await this.apiClient.unsaveItems(selectedItems);
+        }).open();
+        break;
+
+      case 'off':
+      default:
+        // Do nothing
+        break;
+    }
   }
 
   private scanExistingRedditIds(): Set<string> {
@@ -248,6 +287,7 @@ export default class RedditSavedPlugin extends Plugin {
 
     let importedCount = 0;
     let skippedCount = 0;
+    const importedItems: RedditItem[] = [];
 
     for (const item of items) {
       const data = item.data;
@@ -288,18 +328,45 @@ export default class RedditSavedPlugin extends Plugin {
 
       const fileName = sanitizeFileName(rawFileName);
 
+      // Determine the save folder based on subreddit organization setting
+      let saveFolder = this.settings.saveLocation;
+      if (this.settings.organizeBySubreddit && data.subreddit) {
+        const subredditFolder = sanitizeSubredditName(data.subreddit);
+        saveFolder = `${this.settings.saveLocation}/${subredditFolder}`;
+
+        // Create subreddit folder if it doesn't exist
+        const subredditFolderExists = this.app.vault.getAbstractFileByPath(saveFolder);
+        if (!subredditFolderExists) {
+          await this.app.vault.createFolder(saveFolder);
+        }
+      }
+
       // Generate unique filename if it already exists
-      let filePath = `${this.settings.saveLocation}/${fileName}.md`;
+      let filePath = `${saveFolder}/${fileName}.md`;
       let counter = 1;
       while (this.app.vault.getAbstractFileByPath(filePath)) {
-        filePath = `${this.settings.saveLocation}/${fileName} ${counter}.md`;
+        filePath = `${saveFolder}/${fileName} ${counter}.md`;
         counter++;
+      }
+
+      // Fetch comments if enabled and this is a post (not a saved comment)
+      let comments: RedditComment[] = [];
+      if (this.settings.exportPostComments && !isComment) {
+        try {
+          comments = await this.apiClient.fetchPostComments(
+            data.permalink,
+            this.settings.commentUpvoteThreshold
+          );
+        } catch (error) {
+          console.error(`Error fetching comments for ${data.id}:`, error);
+        }
       }
 
       const content = await this.contentFormatter.formatRedditContent(
         data,
         isComment,
-        contentOrigin
+        contentOrigin,
+        comments
       );
       await this.app.vault.create(filePath, content);
 
@@ -308,13 +375,15 @@ export default class RedditSavedPlugin extends Plugin {
         this.settings.importedIds.push(redditId);
       }
 
+      // Track successfully imported item
+      importedItems.push(item);
       importedCount++;
     }
 
     // Save updated imported IDs
     await this.saveSettings();
 
-    // Return counts for better user feedback
-    return { imported: importedCount, skipped: skippedCount };
+    // Return counts and imported items for better user feedback and auto-unsave
+    return { imported: importedCount, skipped: skippedCount, importedItems };
   }
 }

@@ -1,3 +1,5 @@
+export type UnsaveMode = 'off' | 'prompt' | 'auto';
+
 export interface RedditSavedSettings {
   clientId: string;
   clientSecret: string;
@@ -6,7 +8,8 @@ export interface RedditSavedSettings {
   tokenExpiry: number;
   username: string;
   saveLocation: string;
-  autoUnsave: boolean;
+  autoUnsave: boolean; // Deprecated: use unsaveMode instead
+  unsaveMode: UnsaveMode; // 'off' | 'prompt' | 'auto'
   fetchLimit: number;
   importedIds: string[]; // Track imported Reddit IDs
   skipExisting: boolean; // Skip already imported posts
@@ -25,6 +28,10 @@ export interface RedditSavedSettings {
   // Crosspost handling
   importCrosspostOriginal: boolean; // Import original instead of crosspost
   preserveCrosspostMetadata: boolean; // Keep crosspost relationship info
+  // Organization
+  organizeBySubreddit: boolean; // Organize exports into subreddit subfolders
+  exportPostComments: boolean; // Export comments from saved posts
+  commentUpvoteThreshold: number; // Minimum upvotes for comments to be included
 }
 
 export interface MediaInfo {
@@ -38,6 +45,7 @@ export interface MediaInfo {
 export interface ImportResult {
   imported: number;
   skipped: number;
+  importedItems: RedditItem[];
 }
 
 // Content origin tracking
@@ -81,4 +89,15 @@ export interface RedditItemData {
   // Crosspost metadata
   crosspost_parent?: string; // Full name of parent post (e.g., "t3_abc123")
   crosspost_parent_list?: RedditItemData[]; // Original post data
+}
+
+export interface RedditComment {
+  id: string;
+  author: string;
+  body: string;
+  score: number;
+  created_utc: number;
+  is_submitter: boolean;
+  depth: number;
+  replies?: RedditComment[];
 }

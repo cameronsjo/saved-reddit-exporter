@@ -3,7 +3,7 @@ import { RedditSavedSettings } from './types';
 // OAuth Configuration
 export const DEFAULT_REDIRECT_PORT = 9638;
 export const OAUTH_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
-export const OAUTH_SCOPES = 'identity history read';
+export const OAUTH_SCOPES = 'identity history read save';
 export const OAUTH_DURATION = 'permanent';
 export const OAUTH_RESPONSE_TYPE = 'code';
 
@@ -121,6 +121,7 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   username: '',
   saveLocation: DEFAULT_SAVE_LOCATION,
   autoUnsave: false,
+  unsaveMode: 'off',
   fetchLimit: REDDIT_MAX_ITEMS,
   importedIds: [],
   skipExisting: true,
@@ -139,4 +140,12 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   // Crosspost defaults
   importCrosspostOriginal: false,
   preserveCrosspostMetadata: true,
+  // Organization defaults
+  organizeBySubreddit: false,
+  exportPostComments: false,
+  commentUpvoteThreshold: 0,
 };
+
+// Comment export defaults
+export const DEFAULT_COMMENT_UPVOTE_THRESHOLD = 0;
+export const MAX_COMMENT_DEPTH = 10; // Maximum depth of nested comments to fetch

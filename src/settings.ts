@@ -1,5 +1,5 @@
 import { App, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
-import { RedditSavedSettings } from './types';
+import { RedditSavedSettings, UnsaveMode } from './types';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 
@@ -250,14 +250,64 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
-      .setName('Auto-unsave')
-      .setDesc('Automatically unsave posts from Reddit after importing')
+      .setName('Unsave after import')
+      .setDesc(
+        'Choose how to handle unsaving posts from Reddit after importing. Note: If you previously authenticated without this feature, you must re-authenticate to grant the required permission.'
+      )
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('off', 'Off - Keep saved on Reddit')
+          .addOption('prompt', 'Prompt - Choose which to unsave')
+          .addOption('auto', 'Auto - Unsave all imported')
+          .setValue(this.settings.unsaveMode)
+          .onChange(async value => {
+            this.settings.unsaveMode = value as UnsaveMode;
+            // Keep legacy setting in sync for backwards compatibility
+            this.settings.autoUnsave = value === 'auto';
+            await this.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Organize by subreddit')
+      .setDesc('Create subfolders for each subreddit (e.g., Reddit Saved/obsidian/)')
       .addToggle(toggle =>
-        toggle.setValue(this.settings.autoUnsave).onChange(async value => {
-          this.settings.autoUnsave = value;
+        toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
+          this.settings.organizeBySubreddit = value;
           await this.saveSettings();
         })
       );
+
+    new Setting(containerEl).setName('Comment export settings').setHeading();
+
+    new Setting(containerEl)
+      .setName('Export post comments')
+      .setDesc('Include top comments when exporting saved posts')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.exportPostComments).onChange(async value => {
+          this.settings.exportPostComments = value;
+          await this.saveSettings();
+          this.display(); // Refresh to show/hide threshold setting
+        })
+      );
+
+    if (this.settings.exportPostComments) {
+      new Setting(containerEl)
+        .setName('Comment upvote threshold')
+        .setDesc('Minimum upvotes required for a comment to be included (0 = include all)')
+        .addText(text =>
+          text
+            .setPlaceholder('0')
+            .setValue(String(this.settings.commentUpvoteThreshold))
+            .onChange(async value => {
+              const num = parseInt(value);
+              if (!isNaN(num) && num >= 0) {
+                this.settings.commentUpvoteThreshold = num;
+                await this.saveSettings();
+              }
+            })
+        );
+    }
 
     // Advanced Settings Section
     new Setting(containerEl).setName('Advanced settings').setHeading();
