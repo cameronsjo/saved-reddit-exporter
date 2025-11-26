@@ -1,4 +1,4 @@
-import { RedditSavedSettings } from './types';
+import { RedditSavedSettings, FilterSettings, PostType } from './types';
 
 // OAuth Configuration
 export const DEFAULT_REDIRECT_PORT = 9638;
@@ -112,6 +112,49 @@ export const CONTENT_ORIGIN_COMMENTED = 'commented';
 // Backoff Configuration
 export const BACKOFF_MAX_DELAY_MS = 30000; // 30 seconds max backoff
 
+// Default Filter Settings
+export const DEFAULT_FILTER_SETTINGS: FilterSettings = {
+  enabled: false,
+
+  // Subreddit filtering
+  subredditFilterMode: 'exclude',
+  subredditList: [],
+  subredditRegex: '',
+  useSubredditRegex: false,
+
+  // Content filtering
+  titleKeywords: [],
+  titleKeywordsMode: 'include',
+  contentKeywords: [],
+  contentKeywordsMode: 'include',
+  flairList: [],
+  flairFilterMode: 'include',
+
+  // Score filtering
+  minScore: null,
+  maxScore: null,
+  minUpvoteRatio: null,
+
+  // Post type filtering
+  includePostTypes: ['text', 'link', 'image', 'video'] as PostType[],
+  includeComments: true,
+  includePosts: true,
+
+  // Date range filtering
+  dateRangePreset: 'all',
+  dateRangeStart: null,
+  dateRangeEnd: null,
+
+  // Advanced filters
+  authorFilterMode: 'exclude',
+  authorList: [],
+  minCommentCount: null,
+  maxCommentCount: null,
+  domainFilterMode: 'exclude',
+  domainList: [],
+  excludeNsfw: false,
+};
+
 export const DEFAULT_SETTINGS: RedditSavedSettings = {
   clientId: '',
   clientSecret: '',
@@ -144,8 +187,17 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   organizeBySubreddit: false,
   exportPostComments: false,
   commentUpvoteThreshold: 0,
+  // Filter defaults
+  filterSettings: DEFAULT_FILTER_SETTINGS,
+  showFilterSettings: false,
 };
 
 // Comment export defaults
 export const DEFAULT_COMMENT_UPVOTE_THRESHOLD = 0;
 export const MAX_COMMENT_DEPTH = 10; // Maximum depth of nested comments to fetch
+
+// Filter-related messages
+export const MSG_FILTER_PREVIEW = 'Preview mode: showing what would be imported...';
+export const MSG_FILTER_RESULTS = (imported: number, filtered: number, skipped: number) =>
+  `Would import ${imported}, filter ${filtered}, skip ${skipped} items`;
+export const MSG_INVALID_REGEX = 'Invalid regex pattern in filter settings';
