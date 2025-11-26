@@ -10,16 +10,22 @@ Usage: npm run version [patch|minor|major]
 
 Examples:
   npm run version patch    # 1.0.0 → 1.0.1
-  npm run version minor    # 1.0.0 → 1.1.0  
+  npm run version minor    # 1.0.0 → 1.1.0
   npm run version major    # 1.0.0 → 2.0.0
 
 This script will:
   1. Update manifest.json version
-  2. Update versions.json with new entry
+  2. Update versions.json with new entry (plugin version → min Obsidian version)
   3. Stage the changes for git
   4. Create git commit with version message
   5. Create git tag (without 'v' prefix for Obsidian)
-  6. Push tag and commit to trigger release
+  6. Push tag and commit
+
+NOTE: This project uses release-please for automatic releases.
+For normal releases, just use conventional commits (feat:, fix:, etc.)
+and let release-please handle versioning automatically.
+
+Use this script only for manual releases that bypass release-please.
 `);
 }
 
@@ -70,11 +76,15 @@ function updateVersionsFile(newVersion) {
             console.log('📝 Creating new versions.json file');
         }
 
-        // Add new version with current date
-        versions[newVersion] = new Date().toISOString().split('T')[0];
-        
+        // Get minAppVersion from manifest.json
+        const manifest = JSON.parse(readFileSync('manifest.json', 'utf8'));
+        const minAppVersion = manifest.minAppVersion;
+
+        // Add new version mapping: plugin version → minimum Obsidian version
+        versions[newVersion] = minAppVersion;
+
         writeFileSync('versions.json', JSON.stringify(versions, null, '\t') + '\n');
-        console.log(`✅ Updated versions.json with version ${newVersion}`);
+        console.log(`✅ Updated versions.json: ${newVersion} → ${minAppVersion}`);
     } catch (error) {
         console.error('❌ Failed to update versions.json:', error.message);
         process.exit(1);

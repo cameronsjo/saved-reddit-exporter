@@ -9,6 +9,9 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  PLUGIN_NAME: saved-reddit-exporter
+
 jobs:
   release-please:
     runs-on: ubuntu-latest
@@ -51,12 +54,11 @@ jobs:
             git push
           fi
 
+  # Build and upload release assets when release is created
   build-release:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
-    env:
-      PLUGIN_NAME: saved-reddit-exporter
     steps:
       - uses: actions/checkout@v4
 
@@ -72,21 +74,36 @@ jobs:
       - name: Build plugin
         run: npm run build
 
+      - name: Check for styles.css
+        id: check_styles
+        run: |
+          if [ -f styles.css ]; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Package plugin
         run: |
           mkdir ${{ env.PLUGIN_NAME }}
           cp main.js manifest.json ${{ env.PLUGIN_NAME }}
-          [ -f styles.css ] && cp styles.css ${{ env.PLUGIN_NAME }} || echo "No styles.css found, skipping"
+          if [ -f styles.css ]; then
+            cp styles.css ${{ env.PLUGIN_NAME }}
+          fi
           zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
 
       - name: Upload Release Assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Upload required files
           gh release upload ${{ needs.release-please.outputs.tag_name }} \
             ${{ env.PLUGIN_NAME }}.zip \
             main.js \
             manifest.json \
             --clobber
+
           # Upload styles.css only if it exists
-          [ -f styles.css ] && gh release upload ${{ needs.release-please.outputs.tag_name }} styles.css --clobber || true
+          if [ -f styles.css ]; then
+            gh release upload ${{ needs.release-please.outputs.tag_name }} styles.css --clobber
+          fi

@@ -1,0 +1,97 @@
+name: Beta Release
+
+# Manual trigger for beta releases
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Beta version (e.g., 1.2.0-beta.1)'
+        required: true
+        type: string
+      prerelease:
+        description: 'Mark as pre-release on GitHub'
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_NAME: saved-reddit-exporter
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate version format
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          # Check version matches semver with pre-release suffix
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
+            echo "Error: Version must be in format X.Y.Z-beta.N (e.g., 1.2.0-beta.1)"
+            echo "Valid prefixes: alpha, beta, rc"
+            exit 1
+          fi
+          echo "Version format valid: $VERSION"
+
+  build-beta:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update manifest.json version for beta
+        run: |
+          # Update version in manifest.json for this beta release
+          jq --arg ver "${{ github.event.inputs.version }}" '.version = $ver' manifest.json > manifest.json.tmp
+          mv manifest.json.tmp manifest.json
+          cat manifest.json
+
+      - name: Build plugin
+        run: npm run build
+
+      - name: Package plugin
+        run: |
+          mkdir ${{ env.PLUGIN_NAME }}
+          cp main.js manifest.json ${{ env.PLUGIN_NAME }}
+          if [ -f styles.css ]; then
+            cp styles.css ${{ env.PLUGIN_NAME }}
+          fi
+          zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
+
+      - name: Create Beta Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # Create the release (tag without v prefix for Obsidian compatibility)
+          gh release create "$VERSION" \
+            --title "$VERSION" \
+            --generate-notes \
+            $PRERELEASE_FLAG \
+            ${{ env.PLUGIN_NAME }}.zip \
+            main.js \
+            manifest.json
+
+          # Upload styles.css if it exists
+          if [ -f styles.css ]; then
+            gh release upload "$VERSION" styles.css --clobber
+          fi
+
+          echo "Beta release created: $VERSION"
+          echo "Install via BRAT: cameronsjo/saved-reddit-exporter"

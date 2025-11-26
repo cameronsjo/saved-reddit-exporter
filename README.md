@@ -67,10 +67,19 @@ We're breaking your content out of Reddit jail.
 2. Search for "Saved Reddit Exporter"
 3. Install and enable
 
+**Via BRAT (Beta Testing / Early Access):**
+
+1. Install [BRAT](https://github.com/TfTHacker/obsidian42-brat) from Community Plugins
+2. Open command palette → "BRAT: Add a beta plugin for testing"
+3. Enter: `cameronsjo/saved-reddit-exporter`
+4. Enable the plugin in Settings → Community Plugins
+
+_BRAT lets you get updates before they hit the community plugin list, and test beta features._
+
 **Manual Installation:**
 
-1. Download the latest release
-2. Extract to your vault's `.obsidian/plugins/saved-reddit-exporter/` folder
+1. Download the latest release from [GitHub Releases](https://github.com/cameronsjo/saved-reddit-exporter/releases)
+2. Extract `main.js` and `manifest.json` to `.obsidian/plugins/saved-reddit-exporter/`
 3. Enable the plugin in Obsidian settings
 
 ### 3. Configure & Connect
