@@ -13,6 +13,7 @@ import { RedditApiClient } from './api-client';
 import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
+import { UnsaveSelectionModal, AutoUnsaveConfirmModal } from './unsave-modal';
 import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
 
 export default class RedditSavedPlugin extends Plugin {
@@ -74,7 +75,14 @@ export default class RedditSavedPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const savedData = await this.loadData();
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, savedData);
+
+    // Migration: convert old autoUnsave boolean to new unsaveMode
+    if (savedData && savedData.autoUnsave && !savedData.unsaveMode) {
+      this.settings.unsaveMode = 'auto';
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
@@ -111,19 +119,39 @@ export default class RedditSavedPlugin extends Plugin {
         new Notice(`Successfully imported ${result.imported} saved items`);
       }
 
-      if (this.settings.autoUnsave) {
-        // Only unsave newly imported items
-        const itemsToUnsave = savedItems.filter(_item => {
-          return !this.settings.skipExisting || result.imported > 0;
-        });
-        if (itemsToUnsave.length > 0) {
-          await this.apiClient.unsaveItems(itemsToUnsave);
-        }
+      // Handle unsave based on mode
+      if (result.importedItems.length > 0) {
+        await this.handleUnsave(result.importedItems);
       }
     } catch (error) {
       console.error('Error fetching saved posts:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
       new Notice(`Error: ${errorMessage}`);
+    }
+  }
+
+  private async handleUnsave(importedItems: RedditItem[]): Promise<void> {
+    switch (this.settings.unsaveMode) {
+      case 'auto':
+        // Show confirmation before auto-unsaving
+        new AutoUnsaveConfirmModal(this.app, importedItems.length, async () => {
+          await this.apiClient.unsaveItems(importedItems);
+        }).open();
+        break;
+
+      case 'prompt':
+        // Show selection modal for user to choose which items to unsave
+        // The callback receives items one at a time for per-item progress tracking
+        new UnsaveSelectionModal(this.app, importedItems, async (selectedItems: RedditItem[]) => {
+          // This is called per-item from the modal for progress tracking
+          await this.apiClient.unsaveItems(selectedItems);
+        }).open();
+        break;
+
+      case 'off':
+      default:
+        // Do nothing
+        break;
     }
   }
 
@@ -174,6 +202,7 @@ export default class RedditSavedPlugin extends Plugin {
 
     let importedCount = 0;
     let skippedCount = 0;
+    const importedItems: RedditItem[] = [];
 
     for (const item of items) {
       const data = item.data;
@@ -214,13 +243,15 @@ export default class RedditSavedPlugin extends Plugin {
         this.settings.importedIds.push(redditId);
       }
 
+      // Track successfully imported item
+      importedItems.push(item);
       importedCount++;
     }
 
     // Save updated imported IDs
     await this.saveSettings();
 
-    // Return counts for better user feedback
-    return { imported: importedCount, skipped: skippedCount };
+    // Return counts and imported items for better user feedback and auto-unsave
+    return { imported: importedCount, skipped: skippedCount, importedItems };
   }
 }
