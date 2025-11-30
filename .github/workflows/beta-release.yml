@@ -1,15 +1,10 @@
 name: Beta Release (BRAT)
 
-# Auto-release beta on every push to main with releasable changes
+# Triggered by [beta] keyword in commit message
 on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "**.md"
-      - ".github/ISSUE_TEMPLATE/**"
-      - ".github/PULL_REQUEST_TEMPLATE/**"
-      - "docs/**"
 
 permissions:
   contents: write
