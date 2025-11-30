@@ -26,6 +26,7 @@ import { RedditSavedSettingTab } from './settings';
 import { UnsaveSelectionModal, AutoUnsaveConfirmModal } from './unsave-modal';
 import { SyncManagerModal } from './sync-modal';
 import { SyncManager } from './sync-manager';
+import { Exporter } from './exporter';
 import { sanitizeFileName, isPathSafe, sanitizeSubredditName } from './utils/file-sanitizer';
 import { FilterEngine, createEmptyBreakdown } from './filters';
 import { SyncItem } from './types';
@@ -127,6 +128,30 @@ export default class RedditSavedPlugin extends Plugin {
       name: 'Open Sync Manager',
       callback: async () => {
         await this.openSyncManager();
+      },
+    });
+
+    this.addCommand({
+      id: 'export-to-json',
+      name: 'Export vault items to JSON',
+      callback: async () => {
+        await this.exportToJson();
+      },
+    });
+
+    this.addCommand({
+      id: 'export-to-csv',
+      name: 'Export vault items to CSV',
+      callback: async () => {
+        await this.exportToCsv();
+      },
+    });
+
+    this.addCommand({
+      id: 'show-export-stats',
+      name: 'Show export statistics',
+      callback: async () => {
+        await this.showExportStats();
       },
     });
 
@@ -885,6 +910,108 @@ export default class RedditSavedPlugin extends Plugin {
 
     new Notice(`Reprocess complete: ${success} updated, ${failed} failed`);
     return { success, failed };
+  }
+
+  /**
+   * Export vault items to JSON file
+   */
+  async exportToJson(): Promise<void> {
+    try {
+      const exporter = new Exporter(this.app, this.settings);
+      const outputPath = await exporter.exportToJsonFile({ includeContent: true });
+      new Notice(`Export complete: ${outputPath}`);
+    } catch (error) {
+      console.error('Error exporting to JSON:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Export failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Export vault items to CSV file
+   */
+  async exportToCsv(): Promise<void> {
+    try {
+      const exporter = new Exporter(this.app, this.settings);
+      const outputPath = await exporter.exportToCsv();
+      new Notice(`Export complete: ${outputPath}`);
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Export failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Show export statistics
+   */
+  async showExportStats(): Promise<void> {
+    try {
+      const exporter = new Exporter(this.app, this.settings);
+      const stats = await exporter.getExportStats();
+
+      const subredditLines = Object.entries(stats.bySubreddit)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([sub, count]) => `  r/${sub}: ${count}`)
+        .join('\n');
+
+      const typeLines = Object.entries(stats.byType)
+        .map(([type, count]) => `  ${type}: ${count}`)
+        .join('\n');
+
+      new ExportStatsModal(this.app, {
+        totalItems: stats.totalItems,
+        subredditBreakdown: subredditLines,
+        typeBreakdown: typeLines,
+      }).open();
+    } catch (error) {
+      console.error('Error getting export stats:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to get stats: ${errorMessage}`);
+    }
+  }
+}
+
+/**
+ * Modal to display export statistics
+ */
+class ExportStatsModal extends Modal {
+  private stats: {
+    totalItems: number;
+    subredditBreakdown: string;
+    typeBreakdown: string;
+  };
+
+  constructor(
+    app: App,
+    stats: { totalItems: number; subredditBreakdown: string; typeBreakdown: string }
+  ) {
+    super(app);
+    this.stats = stats;
+  }
+
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+
+    contentEl.createEl('h2', { text: '📊 Export Statistics' });
+
+    contentEl.createEl('p', { text: `Total items in vault: ${this.stats.totalItems}` });
+
+    contentEl.createEl('h3', { text: 'Top Subreddits' });
+    contentEl.createEl('pre', { text: this.stats.subredditBreakdown || 'No items found' });
+
+    contentEl.createEl('h3', { text: 'By Type' });
+    contentEl.createEl('pre', { text: this.stats.typeBreakdown || 'No items found' });
+
+    const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+    buttonContainer.createEl('button', { text: 'Close' }).onclick = () => this.close();
+  }
+
+  onClose() {
+    const { contentEl } = this;
+    contentEl.empty();
   }
 }
 
