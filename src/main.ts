@@ -28,6 +28,11 @@ import { SyncManagerModal } from './sync-modal';
 import { SyncManager } from './sync-manager';
 import { Exporter } from './exporter';
 import { sanitizeFileName, isPathSafe, sanitizeSubredditName } from './utils/file-sanitizer';
+import {
+  buildTemplateVariables,
+  generateFolderPath,
+  generateFilename,
+} from './utils/path-template';
 import { FilterEngine, createEmptyBreakdown } from './filters';
 import { SyncItem } from './types';
 import { ImportStateManager, ImportProgress } from './import-state';
@@ -645,26 +650,37 @@ export default class RedditSavedPlugin extends Plugin {
       const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
       const contentOrigin: ContentOrigin = item.contentOrigin || 'saved';
 
-      // Generate filename based on content type
-      let rawFileName: string;
-      if (isComment) {
-        rawFileName = `Comment - ${data.link_title || 'Unknown'}`;
+      // Build template variables for this item
+      const templateVars = buildTemplateVariables(data, isComment, contentOrigin);
+
+      // Generate filename using template or fallback to legacy behavior
+      let fileName: string;
+      if (this.settings.filenameTemplate) {
+        fileName = generateFilename(this.settings.filenameTemplate, templateVars);
       } else {
-        rawFileName = data.title!;
+        // Legacy filename generation
+        let rawFileName: string;
+        if (isComment) {
+          rawFileName = `Comment - ${data.link_title || 'Unknown'}`;
+        } else {
+          rawFileName = data.title!;
+        }
+
+        // Add prefix for non-saved content to help with organization
+        if (contentOrigin === 'upvoted') {
+          rawFileName = `[Upvoted] ${rawFileName}`;
+        } else if (contentOrigin === 'submitted') {
+          rawFileName = `[My Post] ${rawFileName}`;
+        } else if (contentOrigin === 'commented') {
+          rawFileName = `[My Comment] ${rawFileName}`;
+        }
+
+        fileName = sanitizeFileName(rawFileName);
       }
 
-      // Add prefix for non-saved content to help with organization
-      if (contentOrigin === 'upvoted') {
-        rawFileName = `[Upvoted] ${rawFileName}`;
-      } else if (contentOrigin === 'submitted') {
-        rawFileName = `[My Post] ${rawFileName}`;
-      } else if (contentOrigin === 'commented') {
-        rawFileName = `[My Comment] ${rawFileName}`;
-      }
-
-      // Validate path safety before sanitizing
-      if (!isPathSafe(rawFileName)) {
-        console.warn(`Skipping potentially unsafe filename: ${rawFileName}`);
+      // Validate path safety
+      if (!isPathSafe(fileName)) {
+        console.warn(`Skipping potentially unsafe filename: ${fileName}`);
         skippedCount++;
         this.importStateManager.markItemFailed(redditId, 'Unsafe filename', false);
         this.performanceMonitor.recordItemProcessed('failed');
@@ -672,17 +688,18 @@ export default class RedditSavedPlugin extends Plugin {
       }
 
       try {
-        const fileName = sanitizeFileName(rawFileName);
+        // Generate folder path using template or legacy behavior
+        const saveFolder = generateFolderPath(
+          this.settings.saveLocation,
+          this.settings.folderTemplate,
+          templateVars,
+          this.settings.organizeBySubreddit
+        );
 
-        // Determine the save folder based on subreddit organization setting
-        let saveFolder = this.settings.saveLocation;
-        if (this.settings.organizeBySubreddit && data.subreddit) {
-          const subredditFolder = sanitizeSubredditName(data.subreddit);
-          saveFolder = `${this.settings.saveLocation}/${subredditFolder}`;
-
-          // Create subreddit folder if it doesn't exist
-          const subredditFolderExists = this.app.vault.getAbstractFileByPath(saveFolder);
-          if (!subredditFolderExists) {
+        // Create folder structure if it doesn't exist
+        if (saveFolder !== this.settings.saveLocation) {
+          const folderExists = this.app.vault.getAbstractFileByPath(saveFolder);
+          if (!folderExists) {
             await this.app.vault.createFolder(saveFolder);
           }
         }

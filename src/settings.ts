@@ -279,13 +279,64 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Organize by subreddit')
-      .setDesc('Create subfolders for each subreddit (e.g., Reddit Saved/obsidian/)')
+      .setDesc(
+        'Create subfolders for each subreddit (legacy - use folder template for more control)'
+      )
       .addToggle(toggle =>
         toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
           this.settings.organizeBySubreddit = value;
           await this.saveSettings();
         })
       );
+
+    new Setting(containerEl)
+      .setName('Folder template')
+      .setDesc('Custom folder structure using variables. Leave empty for flat structure.')
+      .addText(text =>
+        text
+          .setPlaceholder('{subreddit}/{year}')
+          .setValue(this.settings.folderTemplate)
+          .onChange(async value => {
+            this.settings.folderTemplate = value;
+            await this.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Filename template')
+      .setDesc('Custom filename format. Leave empty for default title-based names.')
+      .addText(text =>
+        text
+          .setPlaceholder('{title}')
+          .setValue(this.settings.filenameTemplate)
+          .onChange(async value => {
+            this.settings.filenameTemplate = value;
+            await this.saveSettings();
+          })
+      );
+
+    // Template variables reference
+    const templateInfo = containerEl.createDiv();
+    templateInfo.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '10px',
+      borderRadius: '4px',
+      marginBottom: '15px',
+      fontSize: '0.85em',
+    });
+
+    templateInfo.createEl('strong', { text: '📁 Template Variables:' });
+    templateInfo.createEl('br');
+    const varText = templateInfo.createEl('code');
+    varText.style.fontSize = '0.9em';
+    varText.textContent =
+      '{subreddit} {author} {type} {origin} {year} {month} {day} {title} {id} {flair} {postType} {score}';
+    templateInfo.createEl('br');
+    templateInfo.createEl('br');
+    templateInfo.createEl('span', { text: 'Examples: ' });
+    templateInfo.createEl('code', { text: '{subreddit}/{year}/{month}' });
+    templateInfo.createEl('span', { text: ' → ' });
+    templateInfo.createEl('code', { text: 'programming/2024/01/' });
 
     new Setting(containerEl).setName('Comment export settings').setHeading();
 

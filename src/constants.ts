@@ -191,6 +191,8 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   preserveCrosspostMetadata: true,
   // Organization defaults
   organizeBySubreddit: false,
+  folderTemplate: '', // Empty = flat structure, use {subreddit}, {year}, {month}, {type}, {origin}
+  filenameTemplate: '{title}', // Default to title-based names
   exportPostComments: false,
   commentUpvoteThreshold: 0,
   // Filter defaults

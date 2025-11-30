@@ -29,7 +29,9 @@ export interface RedditSavedSettings {
   importCrosspostOriginal: boolean; // Import original instead of crosspost
   preserveCrosspostMetadata: boolean; // Keep crosspost relationship info
   // Organization
-  organizeBySubreddit: boolean; // Organize exports into subreddit subfolders
+  organizeBySubreddit: boolean; // Organize exports into subreddit subfolders (legacy, use folderTemplate)
+  folderTemplate: string; // Custom folder template with variables like {subreddit}, {year}, {type}
+  filenameTemplate: string; // Custom filename template
   exportPostComments: boolean; // Export comments from saved posts
   commentUpvoteThreshold: number; // Minimum upvotes for comments to be included
   // Filter settings
@@ -177,6 +179,8 @@ export interface RedditItemData {
   link_permalink?: string;
   is_submitter?: boolean;
   over_18?: boolean; // NSFW flag
+  is_video?: boolean; // Whether post is a video
+  post_hint?: string; // Content hint: 'image', 'link', 'hosted:video', 'rich:video', etc.
   preview?: {
     images?: Array<{
       source: {
