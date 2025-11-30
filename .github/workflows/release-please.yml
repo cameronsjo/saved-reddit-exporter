@@ -109,17 +109,23 @@ jobs:
             gh release upload ${{ needs.release-please.outputs.tag_name }} styles.css --clobber
           fi
 
-      - name: Clean up beta prereleases for this version
+      - name: Clean up prereleases for this version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.release-please.outputs.version }}"
-          echo "Cleaning up beta releases for version $VERSION"
+          echo "Cleaning up prereleases for version $VERSION"
 
-          # Delete all beta prereleases that match this version
+          # Delete all RC prereleases for this version
+          gh release list --limit 100 | grep "${VERSION}-rc" | awk '{print $1}' | while read tag; do
+            echo "Deleting RC release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          done
+
+          # Delete any remaining beta prereleases (RCs should have cleaned these, but just in case)
           gh release list --limit 100 | grep "${VERSION}-beta" | awk '{print $1}' | while read tag; do
             echo "Deleting beta release: $tag"
             gh release delete "$tag" --yes --cleanup-tag || true
           done
 
-          echo "✅ Stable release $VERSION published, beta releases cleaned up"
+          echo "✅ Stable release $VERSION published, all prereleases cleaned up"

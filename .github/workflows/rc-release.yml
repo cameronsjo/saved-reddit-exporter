@@ -1,6 +1,7 @@
-name: Beta Release (BRAT)
+name: Release Candidate
 
-# Triggered by [beta] keyword in commit message
+# Triggered by [rc] keyword in commit message
+# Creates an RC, deletes all betas, signals "ready to ship"
 on:
   push:
     branches:
@@ -25,18 +26,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check for [beta] keyword
+      - name: Check for [rc] keyword
         id: check
         run: |
           COMMIT_MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $COMMIT_MSG"
 
-          if [[ "$COMMIT_MSG" =~ \[beta\] ]]; then
+          if [[ "$COMMIT_MSG" =~ \[rc\] ]]; then
             echo "should_release=true" >> $GITHUB_OUTPUT
-            echo "✅ [beta] keyword found"
+            echo "✅ [rc] keyword found"
           else
             echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "Skipping: no [beta] keyword"
+            echo "Skipping: no [rc] keyword"
           fi
 
       - name: Determine next version
@@ -53,7 +54,6 @@ jobs:
 
           if [ -n "$PR_BRANCH" ]; then
             echo "Found release-please PR branch: $PR_BRANCH"
-            # Fetch the branch and get version from package.json
             git fetch origin "$PR_BRANCH" --depth=1
             NEXT_VERSION=$(git show "origin/$PR_BRANCH:package.json" | jq -r '.version')
             echo "Next version from release-please PR: $NEXT_VERSION"
@@ -65,22 +65,15 @@ jobs:
             echo "Using current version (no release PR found): $NEXT_VERSION"
           fi
 
-          # Generate beta version
-          SHORT_SHA=$(git rev-parse --short HEAD)
+          # Count existing RCs for this version to increment
+          RC_COUNT=$(gh release list --limit 100 | grep -c "${NEXT_VERSION}-rc" || echo "0")
+          RC_NUM=$((RC_COUNT + 1))
 
-          # Count commits since last stable release tag (X.Y.Z format, not prereleases)
-          LAST_STABLE=$(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          if [ -n "$LAST_STABLE" ]; then
-            COMMIT_COUNT=$(git rev-list --count ${LAST_STABLE}..HEAD)
-          else
-            COMMIT_COUNT=$(git rev-list --count HEAD)
-          fi
+          RC_VERSION="${NEXT_VERSION}-rc.${RC_NUM}"
 
-          BETA_VERSION="${NEXT_VERSION}-beta.${COMMIT_COUNT}+${SHORT_SHA}"
-
-          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
+          echo "version=$RC_VERSION" >> $GITHUB_OUTPUT
           echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
-          echo "Generated beta version: $BETA_VERSION"
+          echo "Generated RC version: $RC_VERSION"
 
   build-and-release:
     needs: check-and-version
@@ -101,7 +94,7 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Update manifest.json with beta version
+      - name: Update manifest.json with RC version
         run: |
           VERSION="${{ needs.check-and-version.outputs.version }}"
           jq --arg ver "$VERSION" '.version = $ver' manifest.json > manifest.json.tmp
@@ -120,26 +113,43 @@ jobs:
           fi
           zip -r ${{ env.PLUGIN_NAME }}.zip ${{ env.PLUGIN_NAME }}
 
-      - name: Create Beta Release
+      - name: Delete all beta prereleases for this version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEXT="${{ needs.check-and-version.outputs.next_version }}"
+          echo "Cleaning up beta releases for version $NEXT"
+
+          # Delete all beta prereleases that match this version
+          gh release list --limit 100 | grep "${NEXT}-beta" | awk '{print $1}' | while read tag; do
+            echo "Deleting beta release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          done
+
+          echo "✅ Beta releases cleaned up"
+
+      - name: Create Release Candidate
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.check-and-version.outputs.version }}"
           NEXT="${{ needs.check-and-version.outputs.next_version }}"
-          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
 
           gh release create "$VERSION" \
-            --title "🧪 $VERSION" \
-            --notes "**Beta release for BRAT users**
+            --title "🚀 $VERSION" \
+            --notes "**Release Candidate for $NEXT**
 
-          Commit: \`$COMMIT_MSG\`
-          Target release: \`$NEXT\`
+          This is the final testing phase before stable release.
 
           ---
-          ⚠️ This is a pre-release. Install via [BRAT](https://github.com/TfTHacker/obsidian42-brat):
-          \`cameronsjo/${{ env.PLUGIN_NAME }}\`
+          📋 **Next steps:**
+          1. Test this RC thoroughly
+          2. If issues found, fix and create another \`[rc]\`
+          3. When ready, merge the release-please PR to publish \`$NEXT\` to Obsidian
 
-          When ready for stable release, use \`[rc]\` to create a release candidate." \
+          ---
+          Install via [BRAT](https://github.com/TfTHacker/obsidian42-brat):
+          \`cameronsjo/${{ env.PLUGIN_NAME }}\`" \
             --prerelease \
             ${{ env.PLUGIN_NAME }}.zip \
             main.js \
@@ -149,4 +159,5 @@ jobs:
             gh release upload "$VERSION" styles.css --clobber
           fi
 
-          echo "✅ Beta release created: $VERSION"
+          echo "✅ Release candidate created: $VERSION"
+          echo "🧹 All beta releases for $NEXT have been cleaned up"
