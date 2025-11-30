@@ -5,8 +5,9 @@ import {
   ContentOrigin,
   RedditComment,
 } from './types';
-import { MediaHandler } from './media-handler';
+import { MediaHandler, GalleryImage } from './media-handler';
 import { RedditApiClient } from './api-client';
+import { LinkPreservationService, ExternalLink } from './link-preservation';
 import {
   FRONTMATTER_TYPE_POST,
   FRONTMATTER_TYPE_COMMENT,
@@ -18,10 +19,12 @@ import {
 export class ContentFormatter {
   private settings: RedditSavedSettings;
   private mediaHandler: MediaHandler;
+  private linkPreservation: LinkPreservationService;
 
   constructor(settings: RedditSavedSettings, mediaHandler: MediaHandler) {
     this.settings = settings;
     this.mediaHandler = mediaHandler;
+    this.linkPreservation = new LinkPreservationService();
   }
 
   /**
@@ -131,10 +134,32 @@ export class ContentFormatter {
         }
       }
 
+      // Add gallery metadata
+      if (this.mediaHandler.isGalleryPost(effectiveData)) {
+        const galleryImages = this.mediaHandler.extractGalleryImages(effectiveData);
+        content += `post_type: gallery\n`;
+        content += `gallery_count: ${galleryImages.length}\n`;
+      }
+
+      // Add poll metadata
+      if (this.mediaHandler.isPollPost(effectiveData)) {
+        const pollData = effectiveData.poll_data!;
+        content += `post_type: poll\n`;
+        content += `poll_total_votes: ${pollData.total_vote_count}\n`;
+        content += `poll_options_count: ${pollData.options.length}\n`;
+        if (pollData.voting_end_timestamp) {
+          const endDate = new Date(pollData.voting_end_timestamp).toISOString();
+          content += `poll_ends: ${endDate}\n`;
+        }
+      }
+
       // Add comments metadata if comments were exported
       if (comments.length > 0) {
         content += `exported_comments: ${this.countTotalComments(comments)}\n`;
       }
+
+      // Content enrichment metadata
+      content += this.formatEnrichmentMetadata(effectiveData);
     } else {
       content += `post_title: "${(data.link_title || '').replace(/"/g, '\\"')}"\n`;
       content += `score: ${data.score}\n`;
@@ -203,6 +228,14 @@ export class ContentFormatter {
     // Add replies section for comments with child comments
     if (isComment && data.child_comments && data.child_comments.length > 0) {
       content += this.formatReplies(data.child_comments, data.author);
+    }
+
+    // Add external links section if enabled
+    if (this.settings.enableLinkPreservation && this.settings.extractExternalLinks) {
+      const externalLinksSection = await this.formatExternalLinksSection(effectiveData);
+      if (externalLinksSection) {
+        content += externalLinksSection;
+      }
     }
 
     content += this.formatFooter(effectiveData, isComment, contentOrigin);
@@ -305,7 +338,18 @@ export class ContentFormatter {
     }
     content += `• 👤 u/${data.author} `;
     content += `• ⬆️ ${data.score} `;
-    content += `• 💬 ${data.num_comments}\n\n`;
+    content += `• 💬 ${data.num_comments}`;
+
+    // Status indicators
+    if (data.stickied) content += ` • 📌`;
+    if (data.locked) content += ` • 🔒`;
+    if (data.archived) content += ` • 📦`;
+    if (data.spoiler) content += ` • ⚠️ SPOILER`;
+    if (data.over_18) content += ` • 🔞 NSFW`;
+    if (data.total_awards_received && data.total_awards_received > 0) {
+      content += ` • 🏆 ${data.total_awards_received}`;
+    }
+    content += `\n\n`;
 
     // Crosspost notice
     if (isCrosspost && this.settings.preserveCrosspostMetadata && originalData) {
@@ -315,8 +359,16 @@ export class ContentFormatter {
     // Title
     content += `# ${data.title}\n\n`;
 
-    // Media handling
-    if (mediaInfo.isMedia) {
+    // Gallery handling (check first as galleries have special formatting)
+    if (this.mediaHandler.isGalleryPost(data)) {
+      content += await this.formatGalleryContent(data);
+    }
+    // Poll handling
+    else if (this.mediaHandler.isPollPost(data)) {
+      content += this.formatPollContent(data);
+    }
+    // Regular media handling
+    else if (mediaInfo.isMedia) {
       content += await this.formatMediaContent(data, mediaInfo);
     } else if (data.url && !data.is_self) {
       content += `🔗 **External Link:** [${mediaInfo.domain}](${data.url})\n\n`;
@@ -561,6 +613,250 @@ export class ContentFormatter {
     return content;
   }
 
+  /**
+   * Format content enrichment metadata for frontmatter
+   * Includes awards, status flags, and engagement metrics
+   */
+  private formatEnrichmentMetadata(data: RedditItemData): string {
+    let content = '';
+
+    // Awards information (legacy but may still exist in data)
+    if (data.total_awards_received && data.total_awards_received > 0) {
+      content += `total_awards: ${data.total_awards_received}\n`;
+
+      // List individual award types
+      if (data.all_awardings && data.all_awardings.length > 0) {
+        const awardNames = data.all_awardings.map(
+          a => `${a.name}${a.count > 1 ? ` (${a.count})` : ''}`
+        );
+        content += `awards: [${awardNames.join(', ')}]\n`;
+      }
+    }
+
+    // Gilded count (gold awards specifically)
+    if (data.gilded && data.gilded > 0) {
+      content += `gilded: ${data.gilded}\n`;
+    }
+
+    // Status flags
+    if (data.stickied) {
+      content += `stickied: true\n`;
+    }
+    if (data.spoiler) {
+      content += `spoiler: true\n`;
+    }
+    if (data.archived) {
+      content += `archived: true\n`;
+    }
+    if (data.locked) {
+      content += `locked: true\n`;
+    }
+    if (data.over_18) {
+      content += `nsfw: true\n`;
+    }
+    if (data.contest_mode) {
+      content += `contest_mode: true\n`;
+    }
+
+    // Edit tracking
+    if (data.edited) {
+      const editedDate =
+        typeof data.edited === 'number' ? new Date(data.edited * 1000).toISOString() : 'true';
+      content += `edited: ${editedDate}\n`;
+    }
+
+    // Suggested sort if specified
+    if (data.suggested_sort) {
+      content += `suggested_sort: ${data.suggested_sort}\n`;
+    }
+
+    return content;
+  }
+
+  /**
+   * Format Reddit gallery posts with multiple images
+   */
+  private async formatGalleryContent(data: RedditItemData): Promise<string> {
+    const galleryImages = this.mediaHandler.extractGalleryImages(data);
+    if (galleryImages.length === 0) {
+      return `> ⚠️ Gallery post with no accessible images\n\n`;
+    }
+
+    let content = `📸 **Gallery** (${galleryImages.length} images)\n\n`;
+
+    // Download gallery images if enabled
+    const shouldDownload =
+      this.settings.downloadImages || this.settings.downloadGifs || this.settings.downloadVideos;
+
+    let downloadedPaths: string[] = [];
+    if (shouldDownload) {
+      try {
+        downloadedPaths = await this.mediaHandler.downloadGalleryImages(data);
+      } catch (error) {
+        console.error('Error downloading gallery images:', error);
+      }
+    }
+
+    // Format each gallery image
+    for (let i = 0; i < galleryImages.length; i++) {
+      const image = galleryImages[i];
+      const imageNumber = i + 1;
+
+      // Check if we have a downloaded version
+      const downloadedPath = downloadedPaths[i];
+
+      // Image header with number
+      content += `### Image ${imageNumber}/${galleryImages.length}`;
+      if (image.caption) {
+        content += `: ${image.caption}`;
+      }
+      content += `\n\n`;
+
+      // Display the image
+      if (downloadedPath) {
+        const filename = this.extractFilename(downloadedPath);
+        if (image.isAnimated) {
+          content += `![[${filename}]]\n`;
+          content += `*${image.isAnimated ? '🎞️ Animated' : '📸 Image'} - Downloaded locally*\n\n`;
+        } else {
+          content += `![[${filename}]]\n`;
+          content += `*Downloaded locally*\n\n`;
+        }
+      } else {
+        // Use external URL
+        if (image.isAnimated && image.mp4Url) {
+          content += `🎞️ [View Animation](${image.mp4Url})\n\n`;
+        } else {
+          content += `![Image ${imageNumber}](${image.url})\n\n`;
+        }
+      }
+
+      // Add resolution info if available
+      if (image.width && image.height) {
+        content += `*Resolution: ${image.width}×${image.height}*\n\n`;
+      }
+
+      // Add outbound link if present
+      if (image.outboundUrl) {
+        content += `🔗 [Link](${image.outboundUrl})\n\n`;
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * Format Reddit poll content as a markdown table
+   */
+  private formatPollContent(data: RedditItemData): string {
+    const pollData = data.poll_data!;
+    let content = `📊 **Poll**\n\n`;
+
+    // Poll status
+    const isEnded = pollData.voting_end_timestamp
+      ? Date.now() > pollData.voting_end_timestamp
+      : false;
+
+    if (isEnded) {
+      content += `> ✅ **Poll has ended**\n\n`;
+    } else if (pollData.voting_end_timestamp) {
+      const endDate = new Date(pollData.voting_end_timestamp).toLocaleString();
+      content += `> ⏱️ **Voting ends:** ${endDate}\n\n`;
+    }
+
+    // Total votes
+    content += `**Total votes:** ${pollData.total_vote_count.toLocaleString()}\n\n`;
+
+    // User's selection indicator
+    if (pollData.user_selection) {
+      content += `*You voted in this poll*\n\n`;
+    }
+
+    // Options table
+    content += `| Option | Votes | % |\n`;
+    content += `|--------|-------:|----:|\n`;
+
+    for (const option of pollData.options) {
+      const voteCount = option.vote_count ?? 0;
+      const percentage =
+        pollData.total_vote_count > 0
+          ? ((voteCount / pollData.total_vote_count) * 100).toFixed(1)
+          : '0.0';
+
+      // Add indicator for user's selection
+      const isUserSelection = pollData.user_selection === option.id;
+      const selectionMarker = isUserSelection ? ' ✓' : '';
+
+      content += `| ${option.text}${selectionMarker} | ${voteCount.toLocaleString()} | ${percentage}% |\n`;
+    }
+
+    content += `\n`;
+
+    // Visual bar chart representation
+    if (pollData.total_vote_count > 0) {
+      content += `### Results Visualization\n\n`;
+
+      for (const option of pollData.options) {
+        const voteCount = option.vote_count ?? 0;
+        const percentage = (voteCount / pollData.total_vote_count) * 100;
+        const barLength = Math.round(percentage / 5); // 20 chars = 100%
+        const bar = '█'.repeat(barLength) + '░'.repeat(20 - barLength);
+
+        content += `**${option.text}**\n`;
+        content += `\`${bar}\` ${percentage.toFixed(1)}%\n\n`;
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * Format external links section with optional Wayback Machine archive links
+   */
+  private async formatExternalLinksSection(data: RedditItemData): Promise<string | null> {
+    const externalLinks = this.linkPreservation.extractExternalLinks(data);
+
+    if (externalLinks.length === 0) {
+      return null;
+    }
+
+    let content = '\n\n---\n\n## 🔗 External Links\n\n';
+    content += `*${externalLinks.length} external link(s) found*\n\n`;
+
+    for (const link of externalLinks) {
+      let archiveUrl: string | undefined;
+
+      // Check Wayback archive if enabled
+      if (this.settings.checkWaybackArchive) {
+        try {
+          const archiveResult = await this.linkPreservation.checkWaybackArchive(link.url);
+          if (archiveResult.isArchived) {
+            archiveUrl = archiveResult.archivedUrl;
+          }
+        } catch {
+          // Silently fail archive checks
+        }
+      }
+
+      // Format the link entry
+      content += `- **[${link.domain}](${link.url})**`;
+      content += ` *(from ${link.source})*`;
+
+      if (this.settings.includeArchiveLinks) {
+        if (archiveUrl) {
+          content += `\n  - 📚 [Archived version](${archiveUrl})`;
+        } else {
+          // Provide a "save to archive" link
+          const saveUrl = `https://web.archive.org/save/${link.url}`;
+          content += `\n  - 📥 [Save to Archive](${saveUrl})`;
+        }
+      }
+      content += '\n';
+    }
+
+    return content;
+  }
+
   private formatFooter(
     data: RedditItemData,
     isComment: boolean,
@@ -582,6 +878,13 @@ export class ContentFormatter {
       tags.push('#reddit-comment');
     } else {
       tags.push('#reddit-post');
+      // Add gallery/poll tags
+      if (this.mediaHandler.isGalleryPost(data)) {
+        tags.push('#reddit-gallery');
+      }
+      if (this.mediaHandler.isPollPost(data)) {
+        tags.push('#reddit-poll');
+      }
     }
 
     content += `**Tags:** ${tags.join(' ')}\n\n`;

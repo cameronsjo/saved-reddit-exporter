@@ -53,6 +53,11 @@ export interface RedditSavedSettings {
   commentContextDepth: number; // How many parent comments to fetch (1-10)
   includeCommentReplies: boolean; // Include replies to saved comments
   commentReplyDepth: number; // How many levels of replies to fetch (1-5)
+  // Link preservation settings
+  enableLinkPreservation: boolean; // Enable external link archiving features
+  checkWaybackArchive: boolean; // Check if links are already archived
+  includeArchiveLinks: boolean; // Include Wayback Machine links in output
+  extractExternalLinks: boolean; // Extract and list external links from content
 }
 
 export type PostType = 'text' | 'link' | 'image' | 'video';
@@ -204,6 +209,134 @@ export interface RedditItemData {
   replies?: RedditListingResponse | string; // Nested replies or empty string
   parent_comments?: RedditItemData[]; // Fetched parent context
   child_comments?: RedditItemData[]; // Fetched replies
+  // Gallery post fields
+  is_gallery?: boolean; // Whether post is a gallery
+  gallery_data?: GalleryData; // Gallery items with order and captions
+  media_metadata?: MediaMetadata; // Gallery image metadata keyed by media_id
+  // Poll fields
+  poll_data?: PollData; // Poll options and vote counts
+  // Award fields (legacy - Reddit sunset awards in Sep 2023, but data may still exist)
+  gilded?: number; // Number of gold awards received
+  all_awardings?: RedditAward[]; // All awards received
+  total_awards_received?: number; // Total count of all awards
+  // Additional engagement metadata
+  stickied?: boolean; // Whether post is stickied by moderators
+  spoiler?: boolean; // Whether post is marked as spoiler
+  contest_mode?: boolean; // Whether comments are in contest mode
+  suggested_sort?: string; // Suggested comment sort order
+}
+
+/**
+ * Reddit award structure (legacy - sunset Sep 2023 but may exist in data)
+ */
+export interface RedditAward {
+  /** Award name */
+  name: string;
+  /** Award ID */
+  id: string;
+  /** Award description */
+  description?: string;
+  /** Count of this award type received */
+  count: number;
+  /** Coin price of the award */
+  coin_price?: number;
+  /** Icon URL */
+  icon_url?: string;
+  /** Whether this award grants Reddit Premium */
+  is_new?: boolean;
+  /** Award type (e.g., 'global') */
+  award_type?: string;
+}
+
+/**
+ * Gallery data structure - contains ordered list of gallery items
+ */
+export interface GalleryData {
+  items: GalleryItem[];
+}
+
+/**
+ * Individual gallery item with caption and media reference
+ */
+export interface GalleryItem {
+  /** Caption for the image (optional) */
+  caption?: string;
+  /** Media ID that corresponds to a key in media_metadata */
+  media_id: string;
+  /** Numeric ID for the item */
+  id: number;
+  /** Outbound URL if the image links somewhere */
+  outbound_url?: string;
+}
+
+/**
+ * Media metadata keyed by media_id
+ */
+export interface MediaMetadata {
+  [mediaId: string]: MediaMetadataItem;
+}
+
+/**
+ * Individual media metadata item
+ */
+export interface MediaMetadataItem {
+  /** Status of the media (e.g., 'valid') */
+  status: string;
+  /** Media type (e.g., 'Image', 'AnimatedImage') */
+  e: string;
+  /** MIME type */
+  m?: string;
+  /** Source image info */
+  s?: {
+    /** URL (may contain &amp; that needs decoding) */
+    u?: string;
+    /** GIF URL (for animated images) */
+    gif?: string;
+    /** MP4 URL (for animated images) */
+    mp4?: string;
+    /** Width */
+    x?: number;
+    /** Height */
+    y?: number;
+  };
+  /** Preview images at different resolutions */
+  p?: Array<{
+    u: string;
+    x: number;
+    y: number;
+  }>;
+  /** Original media ID */
+  id?: string;
+}
+
+/**
+ * Poll data structure for Reddit polls
+ */
+export interface PollData {
+  /** Prediction tournament ID (if applicable) */
+  prediction_tournament_id?: string | null;
+  /** Total votes across all options */
+  total_vote_count: number;
+  /** Poll options */
+  options: PollOption[];
+  /** When the poll ends (ISO timestamp or null) */
+  voting_end_timestamp?: number | null;
+  /** User's selection (option ID) */
+  user_selection?: string | null;
+  /** Whether the poll has ended */
+  is_prediction?: boolean;
+}
+
+/**
+ * Individual poll option
+ */
+export interface PollOption {
+  /** Option ID */
+  id: string;
+  /** Option text */
+  text: string;
+  /** Number of votes for this option */
+  vote_count?: number;
 }
 
 export interface RedditComment {

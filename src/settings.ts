@@ -668,8 +668,60 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       }
     }
 
+    // Link Preservation Settings
+    this.displayLinkPreservationSettings(containerEl);
+
     // Filter Settings Section
     this.displayFilterSettings(containerEl);
+  }
+
+  private displayLinkPreservationSettings(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName('Link preservation').setHeading();
+
+    new Setting(containerEl)
+      .setName('Enable link preservation')
+      .setDesc('Extract external links and integrate with Internet Archive Wayback Machine')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.enableLinkPreservation).onChange(async value => {
+          this.settings.enableLinkPreservation = value;
+          await this.saveSettings();
+          this.display();
+        })
+      );
+
+    if (!this.settings.enableLinkPreservation) {
+      return;
+    }
+
+    new Setting(containerEl)
+      .setName('Extract external links')
+      .setDesc('Extract and list external links from post content')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.extractExternalLinks).onChange(async value => {
+          this.settings.extractExternalLinks = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Check Wayback archive')
+      .setDesc('Check if links are already archived (adds latency to imports)')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.checkWaybackArchive).onChange(async value => {
+          this.settings.checkWaybackArchive = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Include archive links')
+      .setDesc('Add Wayback Machine links for external URLs')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.includeArchiveLinks).onChange(async value => {
+          this.settings.includeArchiveLinks = value;
+          await this.saveSettings();
+        })
+      );
   }
 
   private displayFilterSettings(containerEl: HTMLElement): void {

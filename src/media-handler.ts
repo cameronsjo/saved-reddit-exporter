@@ -1,5 +1,11 @@
 import { App, requestUrl, normalizePath } from 'obsidian';
-import { RedditSavedSettings, MediaInfo, RedditItemData } from './types';
+import {
+  RedditSavedSettings,
+  MediaInfo,
+  RedditItemData,
+  GalleryItem,
+  MediaMetadataItem,
+} from './types';
 import {
   IMAGE_EXTENSIONS,
   VIDEO_EXTENSIONS,
@@ -16,6 +22,30 @@ import {
   MEDIA_FILENAME_MAX_URL_PART_LENGTH,
 } from './constants';
 import { sanitizeFileName as sanitizeFileNameUtil, isPathSafe } from './utils/file-sanitizer';
+
+/**
+ * Extracted gallery image with URL and metadata
+ */
+export interface GalleryImage {
+  /** Media ID */
+  mediaId: string;
+  /** Direct URL to the image (decoded) */
+  url: string;
+  /** Caption if provided */
+  caption?: string;
+  /** Image width */
+  width?: number;
+  /** Image height */
+  height?: number;
+  /** Whether this is an animated image */
+  isAnimated: boolean;
+  /** MP4 URL for animated images */
+  mp4Url?: string;
+  /** Order index in the gallery */
+  index: number;
+  /** Outbound link if provided */
+  outboundUrl?: string;
+}
 
 export class MediaHandler {
   private app: App;
@@ -232,5 +262,179 @@ export class MediaHandler {
       if (match) return match[1];
     }
     return null;
+  }
+
+  /**
+   * Check if a post is a Reddit gallery
+   */
+  isGalleryPost(data: RedditItemData): boolean {
+    return !!(data.is_gallery && data.gallery_data?.items && data.media_metadata);
+  }
+
+  /**
+   * Check if a post has poll data
+   */
+  isPollPost(data: RedditItemData): boolean {
+    return !!(data.poll_data && data.poll_data.options?.length > 0);
+  }
+
+  /**
+   * Extract gallery images from a Reddit gallery post
+   * Returns images in the correct order as specified by gallery_data.items
+   */
+  extractGalleryImages(data: RedditItemData): GalleryImage[] {
+    if (!this.isGalleryPost(data)) {
+      return [];
+    }
+
+    const galleryItems = data.gallery_data!.items;
+    const mediaMetadata = data.media_metadata!;
+    const images: GalleryImage[] = [];
+
+    for (let i = 0; i < galleryItems.length; i++) {
+      const item = galleryItems[i];
+      const metadata = mediaMetadata[item.media_id];
+
+      if (!metadata || metadata.status !== 'valid') {
+        console.warn(`Gallery item ${item.media_id} has invalid status or missing metadata`);
+        continue;
+      }
+
+      const galleryImage = this.extractImageFromMetadata(metadata, item, i);
+      if (galleryImage) {
+        images.push(galleryImage);
+      }
+    }
+
+    return images;
+  }
+
+  /**
+   * Extract a single image from media metadata
+   */
+  private extractImageFromMetadata(
+    metadata: MediaMetadataItem,
+    item: GalleryItem,
+    index: number
+  ): GalleryImage | null {
+    // Determine if this is an animated image
+    const isAnimated = metadata.e === 'AnimatedImage';
+
+    // Get the source URL - decode HTML entities (amp; -> &)
+    let url: string | undefined;
+    let mp4Url: string | undefined;
+
+    if (metadata.s) {
+      if (isAnimated && metadata.s.mp4) {
+        // Prefer MP4 for animated images
+        mp4Url = this.decodeRedditUrl(metadata.s.mp4);
+        url = metadata.s.gif ? this.decodeRedditUrl(metadata.s.gif) : mp4Url;
+      } else if (metadata.s.u) {
+        url = this.decodeRedditUrl(metadata.s.u);
+      }
+    }
+
+    if (!url) {
+      console.warn(`No URL found for gallery item ${item.media_id}`);
+      return null;
+    }
+
+    return {
+      mediaId: item.media_id,
+      url,
+      caption: item.caption,
+      width: metadata.s?.x,
+      height: metadata.s?.y,
+      isAnimated,
+      mp4Url,
+      index,
+      outboundUrl: item.outbound_url,
+    };
+  }
+
+  /**
+   * Decode Reddit's encoded URLs (replace &amp; with &)
+   */
+  private decodeRedditUrl(url: string): string {
+    return url.replace(/&amp;/g, '&');
+  }
+
+  /**
+   * Generate a filename for a gallery image
+   */
+  generateGalleryImageFilename(
+    data: RedditItemData,
+    image: GalleryImage,
+    totalImages: number
+  ): string {
+    const title = data.title || 'reddit-gallery';
+    const baseTitle = sanitizeFileNameUtil(title).substring(0, MEDIA_FILENAME_MAX_TITLE_LENGTH);
+    const redditId = data.id || 'unknown';
+
+    // Pad index for proper sorting (e.g., 01, 02, ... 10, 11)
+    const padLength = String(totalImages).length;
+    const paddedIndex = String(image.index + 1).padStart(padLength, '0');
+
+    // Determine extension from URL or type
+    let extension = 'jpg';
+    if (image.isAnimated) {
+      extension = image.mp4Url ? 'mp4' : 'gif';
+    } else {
+      const urlMatch = image.url.match(/\.(\w+)(?:\?|$)/);
+      if (urlMatch) {
+        extension = urlMatch[1].toLowerCase();
+      }
+    }
+
+    return `${baseTitle}-${redditId}-${paddedIndex}.${extension}`;
+  }
+
+  /**
+   * Download all images from a gallery post
+   * Returns array of local file paths
+   */
+  async downloadGalleryImages(
+    data: RedditItemData,
+    onProgress?: (current: number, total: number) => void
+  ): Promise<string[]> {
+    const images = this.extractGalleryImages(data);
+    if (images.length === 0) {
+      return [];
+    }
+
+    const downloadedPaths: string[] = [];
+
+    for (let i = 0; i < images.length; i++) {
+      const image = images[i];
+      onProgress?.(i + 1, images.length);
+
+      try {
+        // Use MP4 for animated images if available and video downloads enabled
+        const downloadUrl =
+          image.isAnimated && image.mp4Url && this.settings.downloadVideos
+            ? image.mp4Url
+            : image.url;
+
+        // Check if we should download based on type
+        const shouldDownload =
+          (image.isAnimated && (this.settings.downloadGifs || this.settings.downloadVideos)) ||
+          (!image.isAnimated && this.settings.downloadImages);
+
+        if (!shouldDownload) {
+          continue;
+        }
+
+        const filename = this.generateGalleryImageFilename(data, image, images.length);
+        const localPath = await this.downloadMediaFile(downloadUrl, filename);
+
+        if (localPath) {
+          downloadedPaths.push(localPath);
+        }
+      } catch (error) {
+        console.error(`Error downloading gallery image ${image.mediaId}:`, error);
+      }
+    }
+
+    return downloadedPaths;
   }
 }

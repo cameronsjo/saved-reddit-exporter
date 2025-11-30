@@ -214,6 +214,11 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   commentContextDepth: 3,
   includeCommentReplies: false,
   commentReplyDepth: 2,
+  // Link preservation defaults
+  enableLinkPreservation: false,
+  checkWaybackArchive: false,
+  includeArchiveLinks: true,
+  extractExternalLinks: true,
 };
 
 // Comment export defaults
