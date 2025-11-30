@@ -28,27 +28,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Check if commit is releasable
+      - name: Check for [beta] keyword
         id: check
         run: |
           # Get the commit message
           COMMIT_MSG=$(git log -1 --pretty=%B)
           echo "Commit message: $COMMIT_MSG"
 
-          # Check if it's a releasable conventional commit (feat, fix, perf)
-          # Skip if it's a release-please commit or chore/docs/style/etc
-          if [[ "$COMMIT_MSG" =~ ^(feat|fix|perf)(\(.+\))?!?:  ]]; then
-            # Also skip release-please's own commits
-            if [[ "$COMMIT_MSG" =~ ^chore\(main\):\ release ]]; then
-              echo "should_release=false" >> $GITHUB_OUTPUT
-              echo "Skipping: release-please commit"
-            else
-              echo "should_release=true" >> $GITHUB_OUTPUT
-              echo "Releasable commit detected"
-            fi
+          # Check if commit message contains [beta] keyword
+          if [[ "$COMMIT_MSG" =~ \[beta\] ]]; then
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "✅ [beta] keyword found - triggering beta release"
           else
             echo "should_release=false" >> $GITHUB_OUTPUT
-            echo "Skipping: not a releasable commit type"
+            echo "Skipping: no [beta] keyword in commit message"
           fi
 
       - name: Generate beta version
