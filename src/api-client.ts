@@ -1,5 +1,12 @@
 import { Notice, requestUrl, RequestUrlParam } from 'obsidian';
-import { RedditSavedSettings, RedditItem, ContentOrigin, RedditComment } from './types';
+import {
+  RedditSavedSettings,
+  RedditItem,
+  ContentOrigin,
+  RedditComment,
+  RedditItemData,
+  CommentThread,
+} from './types';
 import {
   REDDIT_USER_AGENT,
   REDDIT_MAX_ITEMS,
@@ -22,6 +29,8 @@ import {
   HEADER_CONTENT_TYPE,
   CONTENT_TYPE_FORM_URLENCODED,
   HEADER_RETRY_AFTER,
+  COMMENT_MAX_DEPTH,
+  REDDIT_ITEM_TYPE_COMMENT,
 } from './constants';
 import { RequestQueue, CircuitState } from './request-queue';
 import { PerformanceMonitor } from './performance-monitor';
@@ -561,5 +570,255 @@ export class RedditApiClient {
     }
 
     return comments;
+  }
+
+  /**
+   * Fetch a comment with its parent context
+   * Uses the ?context parameter to get parent comments in the thread
+   */
+  async fetchCommentWithContext(
+    commentPermalink: string,
+    contextDepth: number = 3
+  ): Promise<RedditItemData | null> {
+    await this.ensureValidToken();
+
+    // Clamp context depth to valid range (1-10)
+    const depth = Math.max(1, Math.min(10, contextDepth));
+
+    // Build the URL with context parameter
+    const url = `${REDDIT_OAUTH_BASE_URL}${commentPermalink}.json?context=${depth}`;
+
+    const params: RequestUrlParam = {
+      url,
+      method: 'GET',
+      headers: {
+        [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+        [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
+      },
+    };
+
+    try {
+      const response = await requestUrl(params);
+
+      // Reddit returns [post, comments] array
+      if (!Array.isArray(response.json) || response.json.length < 2) {
+        return null;
+      }
+
+      const commentsListing = response.json[1]?.data?.children || [];
+      if (commentsListing.length === 0) {
+        return null;
+      }
+
+      // Find the target comment and extract parent context
+      const parentComments: RedditItemData[] = [];
+      let targetComment: RedditItemData | null = null;
+
+      // The comments are nested - traverse to find the target
+      const findComment = (
+        children: RedditItem[],
+        parents: RedditItemData[] = []
+      ): RedditItemData | null => {
+        for (const child of children) {
+          if (child.kind !== REDDIT_ITEM_TYPE_COMMENT) continue;
+
+          const data = child.data;
+          const currentPermalink = data.permalink;
+
+          // Check if this is our target comment
+          if (currentPermalink && commentPermalink.includes(data.id)) {
+            // Found it - copy parents to result
+            parentComments.push(...parents);
+            return data;
+          }
+
+          // Check nested replies
+          if (data.replies && typeof data.replies === 'object') {
+            const repliesData = data.replies as {
+              data?: { children?: RedditItem[] };
+            };
+            if (repliesData.data?.children) {
+              const found = findComment(repliesData.data.children, [...parents, data]);
+              if (found) return found;
+            }
+          }
+        }
+        return null;
+      };
+
+      targetComment = findComment(commentsListing);
+
+      if (targetComment) {
+        targetComment.parent_comments = parentComments;
+        targetComment.depth = parentComments.length;
+      }
+
+      return targetComment;
+    } catch (error) {
+      console.error('Error fetching comment context:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch replies to a specific comment
+   */
+  async fetchCommentReplies(
+    commentPermalink: string,
+    maxDepth: number = COMMENT_MAX_DEPTH
+  ): Promise<RedditItemData[]> {
+    await this.ensureValidToken();
+
+    const url = `${REDDIT_OAUTH_BASE_URL}${commentPermalink}.json?depth=${maxDepth}&limit=100`;
+
+    const params: RequestUrlParam = {
+      url,
+      method: 'GET',
+      headers: {
+        [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+        [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
+      },
+    };
+
+    try {
+      const response = await requestUrl(params);
+
+      if (!Array.isArray(response.json) || response.json.length < 2) {
+        return [];
+      }
+
+      const commentsListing = response.json[1]?.data?.children || [];
+      if (commentsListing.length === 0) {
+        return [];
+      }
+
+      // Find the target comment
+      const targetComment = commentsListing.find(
+        (c: RedditItem) =>
+          c.kind === REDDIT_ITEM_TYPE_COMMENT && commentPermalink.includes(c.data.id)
+      );
+
+      if (!targetComment) {
+        return [];
+      }
+
+      // Extract replies
+      const repliesData = targetComment.data.replies;
+      if (!repliesData || typeof repliesData !== 'object') {
+        return [];
+      }
+
+      const repliesListing = (repliesData as { data?: { children?: RedditItem[] } }).data?.children;
+      if (!repliesListing) {
+        return [];
+      }
+
+      // Flatten the reply tree
+      return this.flattenCommentTree(repliesListing, 1, maxDepth);
+    } catch (error) {
+      console.error('Error fetching comment replies:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch a full comment thread for a post
+   */
+  async fetchCommentThread(
+    postId: string,
+    subreddit: string,
+    sort: string = 'best'
+  ): Promise<CommentThread | null> {
+    await this.ensureValidToken();
+
+    const url = `${REDDIT_OAUTH_BASE_URL}/r/${subreddit}/comments/${postId}.json?sort=${sort}&limit=100&depth=${COMMENT_MAX_DEPTH}`;
+
+    const params: RequestUrlParam = {
+      url,
+      method: 'GET',
+      headers: {
+        [HEADER_AUTHORIZATION]: `Bearer ${this.settings.accessToken}`,
+        [HEADER_USER_AGENT]: REDDIT_USER_AGENT,
+      },
+    };
+
+    try {
+      const response = await requestUrl(params);
+
+      if (!Array.isArray(response.json) || response.json.length < 2) {
+        return null;
+      }
+
+      const postListing = response.json[0]?.data?.children || [];
+      const commentsListing = response.json[1]?.data?.children || [];
+
+      if (postListing.length === 0) {
+        return null;
+      }
+
+      const post = postListing[0].data as RedditItemData;
+      const comments = this.flattenCommentTree(commentsListing, 0, COMMENT_MAX_DEPTH);
+
+      // Check if there are "more" comments
+      const hasMore = commentsListing.some((c: RedditItem) => c.kind === 'more');
+
+      return {
+        post,
+        comments,
+        totalComments: post.num_comments || 0,
+        hasMore,
+      };
+    } catch (error) {
+      console.error('Error fetching comment thread:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Flatten a nested comment tree into a flat array with depth info
+   */
+  private flattenCommentTree(
+    children: RedditItem[],
+    currentDepth: number,
+    maxDepth: number = COMMENT_MAX_DEPTH
+  ): RedditItemData[] {
+    const result: RedditItemData[] = [];
+
+    for (const child of children) {
+      if (child.kind !== REDDIT_ITEM_TYPE_COMMENT) continue;
+
+      const data = { ...child.data, depth: currentDepth };
+      result.push(data);
+
+      // Recursively flatten nested replies
+      if (currentDepth < maxDepth && data.replies && typeof data.replies === 'object') {
+        const repliesData = data.replies as {
+          data?: { children?: RedditItem[] };
+        };
+        if (repliesData.data?.children) {
+          result.push(
+            ...this.flattenCommentTree(repliesData.data.children, currentDepth + 1, maxDepth)
+          );
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Determine if a parent_id refers to a comment or a post
+   */
+  static getParentType(parentId: string): 'comment' | 'post' {
+    // t1_ = comment, t3_ = post
+    return parentId.startsWith('t1_') ? 'comment' : 'post';
+  }
+
+  /**
+   * Extract the ID from a Reddit fullname (e.g., "t1_abc123" -> "abc123")
+   */
+  static extractIdFromFullname(fullname: string): string {
+    const match = fullname.match(/^t\d_(.+)$/);
+    return match ? match[1] : fullname;
   }
 }

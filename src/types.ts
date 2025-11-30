@@ -42,6 +42,15 @@ export interface RedditSavedSettings {
   maxConcurrentRequests: number; // Maximum concurrent API requests
   maxRetries: number; // Maximum retry attempts for failed requests
   enableOfflineQueue: boolean; // Queue requests when offline
+  // Templater integration
+  useTemplater: boolean; // Enable Templater for custom templates
+  postTemplatePath: string; // Path to post template file
+  commentTemplatePath: string; // Path to comment template file
+  // Comment context settings
+  fetchCommentContext: boolean; // Fetch parent comments for saved comments
+  commentContextDepth: number; // How many parent comments to fetch (1-10)
+  includeCommentReplies: boolean; // Include replies to saved comments
+  commentReplyDepth: number; // How many levels of replies to fetch (1-5)
 }
 
 export type PostType = 'text' | 'link' | 'image' | 'video';
@@ -180,6 +189,17 @@ export interface RedditItemData {
   // Crosspost metadata
   crosspost_parent?: string; // Full name of parent post (e.g., "t3_abc123")
   crosspost_parent_list?: RedditItemData[]; // Original post data
+  // Comment tree fields
+  parent_id?: string; // Full name of parent (t1_ for comment, t3_ for post)
+  link_id?: string; // Full name of parent post (t3_...)
+  depth?: number; // Comment depth in thread (0 = top-level)
+  distinguished?: string | null; // 'moderator', 'admin', or null
+  edited?: boolean | number; // false or Unix timestamp
+  archived?: boolean; // Whether post/comment is archived
+  locked?: boolean; // Whether post/comment is locked
+  replies?: RedditListingResponse | string; // Nested replies or empty string
+  parent_comments?: RedditItemData[]; // Fetched parent context
+  child_comments?: RedditItemData[]; // Fetched replies
 }
 
 export interface RedditComment {
@@ -191,6 +211,47 @@ export interface RedditComment {
   is_submitter: boolean;
   depth: number;
   replies?: RedditComment[];
+}
+
+// Reddit API Listing Response structure
+export interface RedditListingResponse {
+  kind: 'Listing';
+  data: {
+    after?: string | null;
+    before?: string | null;
+    children: RedditItem[];
+    modhash?: string;
+  };
+}
+
+// Comment thread structure for fetching full threads
+export interface CommentThread {
+  post: RedditItemData;
+  comments: RedditItemData[];
+  totalComments: number;
+  hasMore: boolean;
+}
+
+// Templater context for custom templates
+export interface TemplaterContext {
+  item: RedditItemData;
+  isComment: boolean;
+  type: string;
+  permalink: string;
+  subredditUrl: string;
+  authorUrl: string;
+  created: string;
+  createdDate: string;
+  tags: string[];
+  mediaInfo?: MediaInfo;
+  localMediaPath?: string;
+  // Comment tree context
+  parentType?: string;
+  depth?: number;
+  parentComments?: RedditItemData[];
+  childComments?: RedditItemData[];
+  hasParentContext?: boolean;
+  hasReplies?: boolean;
 }
 
 // ============================================================================
