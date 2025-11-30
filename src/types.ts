@@ -192,3 +192,88 @@ export interface RedditComment {
   depth: number;
   replies?: RedditComment[];
 }
+
+// ============================================================================
+// Sync Manager Types
+// ============================================================================
+
+/**
+ * Sync status for a Reddit item relative to the vault
+ */
+export type SyncStatus =
+  | 'imported' // In vault and on Reddit
+  | 'pending' // On Reddit, passes filters, not in vault
+  | 'filtered' // On Reddit, would be filtered out
+  | 'override-pending' // Filtered but user wants to import anyway
+  | 'orphaned'; // In vault but NOT on Reddit (deleted/unsaved)
+
+/**
+ * Metadata extracted from a vault file's frontmatter
+ * Used for displaying orphaned items and identifying items for reprocess
+ */
+export interface VaultItemInfo {
+  /** Path to the vault file */
+  path: string;
+  /** Reddit item ID (without type prefix, e.g., "abc123") */
+  id: string;
+  /** Post title or comment context */
+  title?: string;
+  /** Subreddit name */
+  subreddit?: string;
+  /** Frontmatter type (reddit-post, reddit-comment, etc.) */
+  type?: string;
+  /** Author username */
+  author?: string;
+  /** Score at time of import */
+  score?: number;
+  /** Content origin (saved, upvoted, etc.) */
+  contentOrigin?: string;
+  /** Permalink to Reddit */
+  permalink?: string;
+}
+
+/**
+ * Represents a Reddit item with its sync state
+ */
+export interface SyncItem {
+  /** The Reddit item data (undefined for orphaned items) */
+  item?: RedditItem;
+  /** Current sync status */
+  status: SyncStatus;
+  /** Filter result if item was evaluated against filters */
+  filterResult?: FilterResult;
+  /** Whether user has overridden the filter for this item */
+  userOverride: boolean;
+  /** Path to existing vault file if imported */
+  vaultPath?: string;
+  /** Metadata from vault file (for orphaned items) */
+  vaultInfo?: VaultItemInfo;
+}
+
+/**
+ * Result of computing sync diff between Reddit and vault
+ */
+export interface SyncDiffResult {
+  /** Items in vault AND on Reddit */
+  imported: SyncItem[];
+  /** Items on Reddit that pass filters */
+  pending: SyncItem[];
+  /** Items on Reddit that would be filtered out */
+  filtered: SyncItem[];
+  /** Items in vault but NOT on Reddit */
+  orphaned: SyncItem[];
+  /** Summary statistics */
+  stats: SyncStats;
+}
+
+/**
+ * Statistics for sync state
+ */
+export interface SyncStats {
+  totalReddit: number;
+  totalVault: number;
+  imported: number;
+  pending: number;
+  filtered: number;
+  orphaned: number;
+}

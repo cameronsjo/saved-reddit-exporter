@@ -23,8 +23,11 @@ import { MediaHandler } from './media-handler';
 import { ContentFormatter } from './content-formatter';
 import { RedditSavedSettingTab } from './settings';
 import { UnsaveSelectionModal, AutoUnsaveConfirmModal } from './unsave-modal';
+import { SyncManagerModal } from './sync-modal';
+import { SyncManager } from './sync-manager';
 import { sanitizeFileName, isPathSafe, sanitizeSubredditName } from './utils/file-sanitizer';
 import { FilterEngine, createEmptyBreakdown } from './filters';
+import { SyncItem } from './types';
 import { ImportStateManager, ImportProgress } from './import-state';
 import { PerformanceMonitor } from './performance-monitor';
 
@@ -115,6 +118,14 @@ export default class RedditSavedPlugin extends Plugin {
       name: 'Preview import (dry run)',
       callback: async () => {
         await this.previewImport();
+      },
+    });
+
+    this.addCommand({
+      id: 'open-sync-manager',
+      name: 'Open Sync Manager',
+      callback: async () => {
+        await this.openSyncManager();
       },
     });
 
@@ -709,6 +720,117 @@ export default class RedditSavedPlugin extends Plugin {
       const errorMessage = error instanceof Error ? error.message : String(error);
       new Notice(`Error: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Open the Sync Manager modal for comprehensive vault/Reddit synchronization
+   *
+   * The Sync Manager provides:
+   * - Diff view comparing vault items vs Reddit saved items
+   * - Status categorization: imported, pending, filtered, orphaned
+   * - Bulk import/unsave/reprocess operations
+   * - Filter override capability for individual items
+   */
+  async openSyncManager(): Promise<void> {
+    if (!this.auth.isAuthenticated()) {
+      new Notice(MSG_AUTH_REQUIRED);
+      await this.auth.initiateOAuth();
+      return;
+    }
+
+    try {
+      await this.auth.ensureValidToken();
+
+      new Notice('Loading sync status...');
+
+      // Fetch all saved items from Reddit
+      const savedItems = await this.apiClient.fetchAllSaved();
+
+      // Initialize sync manager and compute state
+      const syncManager = new SyncManager(this.app, this.settings);
+      syncManager.scanVault();
+      syncManager.computeSyncState(savedItems);
+
+      // Open the sync modal with callbacks for import/reprocess actions
+      new SyncManagerModal(this.app, syncManager, this.apiClient, this.settings, {
+        onImport: async (items: RedditItem[]) => {
+          const result = await this.createMarkdownFiles(items);
+          return result;
+        },
+        onReprocess: async (syncItems: SyncItem[]) => {
+          return await this.reprocessItems(syncItems);
+        },
+      }).open();
+    } catch (error) {
+      console.error('Error opening sync manager:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Error: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Reprocess existing vault items with current formatting settings
+   *
+   * For each item:
+   * 1. Fetch fresh data from Reddit API (updated scores, comments, edits)
+   * 2. Re-format using current ContentFormatter settings
+   * 3. Overwrite the existing vault file
+   *
+   * If Reddit fetch fails (post deleted), the vault file is preserved.
+   */
+  async reprocessItems(syncItems: SyncItem[]): Promise<{ success: number; failed: number }> {
+    let success = 0;
+    let failed = 0;
+
+    for (const syncItem of syncItems) {
+      if (!syncItem.item || !syncItem.vaultPath) {
+        failed++;
+        continue;
+      }
+
+      try {
+        const data = syncItem.item.data;
+        const isComment = syncItem.item.kind === REDDIT_ITEM_TYPE_COMMENT;
+        const contentOrigin: ContentOrigin = syncItem.item.contentOrigin || 'saved';
+
+        // Fetch fresh comments if enabled
+        let comments: RedditComment[] = [];
+        if (this.settings.exportPostComments && !isComment) {
+          try {
+            comments = await this.apiClient.fetchPostComments(
+              data.permalink,
+              this.settings.commentUpvoteThreshold
+            );
+          } catch (error) {
+            console.warn(`Could not fetch comments for ${data.id}:`, error);
+          }
+        }
+
+        // Re-format with current settings
+        const content = await this.contentFormatter.formatRedditContent(
+          data,
+          isComment,
+          contentOrigin,
+          comments
+        );
+
+        // Get the file and overwrite it
+        const file = this.app.vault.getAbstractFileByPath(syncItem.vaultPath);
+        if (file && 'path' in file) {
+          await this.app.vault.modify(file as import('obsidian').TFile, content);
+          success++;
+        } else {
+          console.error(`File not found: ${syncItem.vaultPath}`);
+          failed++;
+        }
+      } catch (error) {
+        console.error(`Error reprocessing item ${syncItem.item.data.id}:`, error);
+        failed++;
+      }
+    }
+
+    new Notice(`Reprocess complete: ${success} updated, ${failed} failed`);
+    return { success, failed };
   }
 }
 
