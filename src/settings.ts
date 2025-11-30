@@ -8,7 +8,7 @@ import {
   UnsaveMode,
 } from './types';
 import { FILTER_PRESETS } from './filters';
-import { DEFAULT_FILTER_SETTINGS } from './constants';
+import { DEFAULT_FILTER_SETTINGS, COMMENT_CONTEXT_MAX, COMMENT_MAX_DEPTH } from './constants';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 
@@ -488,6 +488,133 @@ export class RedditSavedSettingTab extends PluginSettingTab {
             await this.saveSettings();
           })
         );
+
+      // Templater Integration Settings
+      new Setting(containerEl).setName('Templater integration').setHeading();
+
+      const templaterInfo = containerEl.createDiv();
+      templaterInfo.setCssProps({
+        backgroundColor: 'var(--background-secondary)',
+        padding: '10px',
+        borderRadius: '4px',
+        marginBottom: '15px',
+      });
+
+      templaterInfo.createEl('strong', { text: '🎨 Custom templates' });
+      templaterInfo.createEl('br');
+      templaterInfo.createSpan({
+        text: 'Use Templater plugin for custom output formats. Variables: {{reddit.title}}, {{reddit.author}}, {{reddit.subreddit}}, etc.',
+      });
+
+      new Setting(containerEl)
+        .setName('Use Templater')
+        .setDesc('Enable Templater plugin integration for custom templates')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.useTemplater).onChange(async value => {
+            this.settings.useTemplater = value;
+            await this.saveSettings();
+            this.display();
+          })
+        );
+
+      if (this.settings.useTemplater) {
+        new Setting(containerEl)
+          .setName('Post template path')
+          .setDesc('Path to template file for posts (relative to vault root)')
+          .addText(text =>
+            text
+              .setPlaceholder('templates/reddit-post.md')
+              .setValue(this.settings.postTemplatePath)
+              .onChange(async value => {
+                this.settings.postTemplatePath = value;
+                await this.saveSettings();
+              })
+          );
+
+        new Setting(containerEl)
+          .setName('Comment template path')
+          .setDesc('Path to template file for comments (relative to vault root)')
+          .addText(text =>
+            text
+              .setPlaceholder('templates/reddit-comment.md')
+              .setValue(this.settings.commentTemplatePath)
+              .onChange(async value => {
+                this.settings.commentTemplatePath = value;
+                await this.saveSettings();
+              })
+          );
+      }
+
+      // Comment Context Settings
+      new Setting(containerEl).setName('Comment context options').setHeading();
+
+      const contextInfo = containerEl.createDiv();
+      contextInfo.setCssProps({
+        backgroundColor: 'var(--background-secondary)',
+        padding: '10px',
+        borderRadius: '4px',
+        marginBottom: '15px',
+      });
+
+      contextInfo.createEl('strong', { text: '💬 Comment context' });
+      contextInfo.createEl('br');
+      contextInfo.createSpan({
+        text: 'Fetch parent comments and replies for saved comments. Note: This requires additional API calls per comment.',
+      });
+
+      new Setting(containerEl)
+        .setName('Fetch parent context')
+        .setDesc('Fetch parent comments to show conversation context for saved comments')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.fetchCommentContext).onChange(async value => {
+            this.settings.fetchCommentContext = value;
+            await this.saveSettings();
+            this.display();
+          })
+        );
+
+      if (this.settings.fetchCommentContext) {
+        new Setting(containerEl)
+          .setName('Context depth')
+          .setDesc(`Number of parent comments to fetch (1-${COMMENT_CONTEXT_MAX})`)
+          .addSlider(slider =>
+            slider
+              .setLimits(1, COMMENT_CONTEXT_MAX, 1)
+              .setValue(this.settings.commentContextDepth)
+              .setDynamicTooltip()
+              .onChange(async value => {
+                this.settings.commentContextDepth = value;
+                await this.saveSettings();
+              })
+          );
+      }
+
+      new Setting(containerEl)
+        .setName('Include replies')
+        .setDesc('Fetch replies to saved comments')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.includeCommentReplies).onChange(async value => {
+            this.settings.includeCommentReplies = value;
+            await this.saveSettings();
+            this.display();
+          })
+        );
+
+      if (this.settings.includeCommentReplies) {
+        new Setting(containerEl)
+          .setName('Reply depth')
+          .setDesc(`Number of reply levels to fetch (1-${COMMENT_MAX_DEPTH})`)
+          .addSlider(slider =>
+            slider
+              .setLimits(1, COMMENT_MAX_DEPTH, 1)
+              .setValue(this.settings.commentReplyDepth)
+              .setDynamicTooltip()
+              .onChange(async value => {
+                this.settings.commentReplyDepth = value;
+                await this.saveSettings();
+              })
+          );
+      }
     }
 
     // Filter Settings Section

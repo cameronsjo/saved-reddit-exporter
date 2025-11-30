@@ -197,11 +197,27 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   maxConcurrentRequests: 2,
   maxRetries: 3,
   enableOfflineQueue: true,
+  // Templater defaults
+  useTemplater: false,
+  postTemplatePath: '',
+  commentTemplatePath: '',
+  // Comment context defaults
+  fetchCommentContext: false,
+  commentContextDepth: 3,
+  includeCommentReplies: false,
+  commentReplyDepth: 2,
 };
 
 // Comment export defaults
 export const DEFAULT_COMMENT_UPVOTE_THRESHOLD = 0;
 export const MAX_COMMENT_DEPTH = 10; // Maximum depth of nested comments to fetch
+
+// Comment tree/context configuration
+export const COMMENT_MAX_TOP_LEVEL = 100; // Reddit API limit for top-level comments
+export const COMMENT_MAX_DEPTH = 5; // Reddit API limit for reply depth per request
+export const COMMENT_CONTEXT_MAX = 10; // Maximum context depth parameter
+export const COMMENT_CONTEXT_DEFAULT = 3; // Default number of parent comments to fetch
+export const COMMENT_REPLY_DEPTH_DEFAULT = 2; // Default reply depth to fetch
 
 // Filter-related messages
 export const MSG_FILTER_PREVIEW = 'Preview mode: showing what would be imported...';
