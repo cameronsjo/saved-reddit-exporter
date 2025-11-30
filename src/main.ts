@@ -842,7 +842,7 @@ export default class RedditSavedPlugin extends Plugin {
         const isComment = syncItem.item.kind === REDDIT_ITEM_TYPE_COMMENT;
         const contentOrigin: ContentOrigin = syncItem.item.contentOrigin || 'saved';
 
-        // Fetch fresh comments if enabled
+        // Fetch fresh comments for posts if enabled
         let comments: RedditComment[] = [];
         if (this.settings.exportPostComments && !isComment) {
           try {
@@ -853,6 +853,11 @@ export default class RedditSavedPlugin extends Plugin {
           } catch (error) {
             console.warn(`Could not fetch comments for ${data.id}:`, error);
           }
+        }
+
+        // Enrich comment data with parent context and replies if enabled
+        if (isComment) {
+          await this.enrichCommentData(data);
         }
 
         // Re-format with current settings
