@@ -43,6 +43,7 @@ export class SyncManager {
   /**
    * Scan the vault for existing Reddit items
    * Extracts frontmatter metadata for display and matching
+   * Supports both single `id` and multi-ID `reddit_ids` array in frontmatter
    */
   scanVault(): Map<string, VaultItemInfo> {
     this.vaultItems.clear();
@@ -55,10 +56,36 @@ export class SyncManager {
         const frontmatter = cache?.frontmatter;
 
         // Only process files with Reddit-type frontmatter
-        if (frontmatter?.id && frontmatter?.type?.startsWith('reddit-')) {
+        if (frontmatter?.type?.startsWith('reddit-')) {
+          // Collect all Reddit IDs from this file
+          const allIds: string[] = [];
+
+          // Primary ID field
+          if (frontmatter.id) {
+            allIds.push(frontmatter.id);
+          }
+
+          // Additional IDs from reddit_ids array (for merged/collection files)
+          if (Array.isArray(frontmatter.reddit_ids)) {
+            for (const id of frontmatter.reddit_ids) {
+              if (typeof id === 'string' && !allIds.includes(id)) {
+                allIds.push(id);
+              }
+            }
+          }
+
+          // Skip if no IDs found
+          if (allIds.length === 0) {
+            continue;
+          }
+
+          const primaryId = allIds[0];
+          const additionalIds = allIds.length > 1 ? allIds.slice(1) : undefined;
+
           const vaultInfo: VaultItemInfo = {
             path: file.path,
-            id: frontmatter.id,
+            id: primaryId,
+            additionalIds,
             title: frontmatter.title,
             subreddit: frontmatter.subreddit,
             type: frontmatter.type,
@@ -68,7 +95,10 @@ export class SyncManager {
             permalink: frontmatter.permalink,
           };
 
-          this.vaultItems.set(frontmatter.id, vaultInfo);
+          // Register ALL IDs as pointing to this vault file
+          for (const id of allIds) {
+            this.vaultItems.set(id, vaultInfo);
+          }
         }
       } catch (error) {
         console.error(`Error reading frontmatter from ${file.path}:`, error);

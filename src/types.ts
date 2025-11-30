@@ -275,13 +275,15 @@ export type SyncStatus =
 export interface VaultItemInfo {
   /** Path to the vault file */
   path: string;
-  /** Reddit item ID (without type prefix, e.g., "abc123") */
+  /** Primary Reddit item ID (without type prefix, e.g., "abc123") */
   id: string;
+  /** Additional Reddit IDs if multiple items were merged into this file */
+  additionalIds?: string[];
   /** Post title or comment context */
   title?: string;
   /** Subreddit name */
   subreddit?: string;
-  /** Frontmatter type (reddit-post, reddit-comment, etc.) */
+  /** Frontmatter type (reddit-post, reddit-comment, reddit-collection, etc.) */
   type?: string;
   /** Author username */
   author?: string;

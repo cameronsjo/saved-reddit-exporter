@@ -102,6 +102,12 @@ export const FRONTMATTER_TYPE_COMMENT = 'reddit-comment';
 export const FRONTMATTER_TYPE_UPVOTED = 'reddit-upvoted';
 export const FRONTMATTER_TYPE_USER_POST = 'reddit-user-post';
 export const FRONTMATTER_TYPE_USER_COMMENT = 'reddit-user-comment';
+export const FRONTMATTER_TYPE_COLLECTION = 'reddit-collection';
+
+// Frontmatter Keys for Multi-ID Support
+// Users can add `reddit_ids: [id1, id2, id3]` to merged files
+// The sync manager will recognize all listed IDs as "imported"
+export const FRONTMATTER_KEY_REDDIT_IDS = 'reddit_ids';
 
 // Content Origin Labels
 export const CONTENT_ORIGIN_SAVED = 'saved';
