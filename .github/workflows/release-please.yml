@@ -27,15 +27,16 @@ jobs:
           release-type: node
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Update versions.json when release PR is created
+  # Update versions.json when release PR is created/updated
   update-versions-json:
     needs: release-please
-    if: ${{ needs.release-please.outputs.pr }}
+    if: ${{ needs.release-please.outputs.prs_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           ref: release-please--branches--main
+          fetch-depth: 0
 
       - name: Update versions.json
         run: |
