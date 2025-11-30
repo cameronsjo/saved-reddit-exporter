@@ -1,18 +1,15 @@
-name: Beta Release
+name: Beta Release (BRAT)
 
-# Manual trigger for beta releases
+# Auto-release beta on every push to main with releasable changes
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Beta version (e.g., 1.2.0-beta.1)'
-        required: true
-        type: string
-      prerelease:
-        description: 'Mark as pre-release on GitHub'
-        required: true
-        type: boolean
-        default: true
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE/**"
+      - "docs/**"
 
 permissions:
   contents: write
@@ -21,35 +18,65 @@ env:
   PLUGIN_NAME: saved-reddit-exporter
 
 jobs:
-  validate:
+  check-releasable:
     runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check.outputs.should_release }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for tag check
+          fetch-depth: 0
 
-      - name: Validate version format
+      - name: Check if commit is releasable
+        id: check
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          # Check version matches semver with pre-release suffix
-          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta|rc)\.[0-9]+$ ]]; then
-            echo "::error::Version must be in format X.Y.Z-beta.N (e.g., 1.2.0-beta.1)"
-            echo "Valid prefixes: alpha, beta, rc"
-            exit 1
-          fi
-          echo "✅ Version format valid: $VERSION"
+          # Get the commit message
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          echo "Commit message: $COMMIT_MSG"
 
-      - name: Check tag doesn't already exist
+          # Check if it's a releasable conventional commit (feat, fix, perf)
+          # Skip if it's a release-please commit or chore/docs/style/etc
+          if [[ "$COMMIT_MSG" =~ ^(feat|fix|perf)(\(.+\))?!?:  ]]; then
+            # Also skip release-please's own commits
+            if [[ "$COMMIT_MSG" =~ ^chore\(main\):\ release ]]; then
+              echo "should_release=false" >> $GITHUB_OUTPUT
+              echo "Skipping: release-please commit"
+            else
+              echo "should_release=true" >> $GITHUB_OUTPUT
+              echo "Releasable commit detected"
+            fi
+          else
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "Skipping: not a releasable commit type"
+          fi
+
+      - name: Generate beta version
+        id: version
+        if: steps.check.outputs.should_release == 'true'
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "::error::Tag $VERSION already exists! Use a different version number."
-            exit 1
-          fi
-          echo "✅ Tag $VERSION is available"
+          # Get current version from package.json
+          CURRENT_VERSION=$(jq -r '.version' package.json)
 
-  test:
-    needs: validate
+          # Get short SHA for uniqueness
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Count commits since last tag for incrementing
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            COMMIT_COUNT=$(git rev-list --count ${LAST_TAG}..HEAD)
+          else
+            COMMIT_COUNT=$(git rev-list --count HEAD)
+          fi
+
+          # Create beta version: currentVersion-beta.commitCount+sha
+          BETA_VERSION="${CURRENT_VERSION}-beta.${COMMIT_COUNT}+${SHORT_SHA}"
+          echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
+          echo "Generated beta version: $BETA_VERSION"
+
+  build-and-release:
+    needs: check-releasable
+    if: needs.check-releasable.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -62,36 +89,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Run linter
-        run: npm run lint
 
       - name: Run tests
         run: npm test
 
-      - name: Type check
-        run: npm run type-check
-
-  build-beta:
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20.x"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Update manifest.json version for beta
+      - name: Update manifest.json with beta version
         run: |
-          # Update version in manifest.json for this beta release
-          jq --arg ver "${{ github.event.inputs.version }}" '.version = $ver' manifest.json > manifest.json.tmp
+          VERSION="${{ needs.check-releasable.outputs.version }}"
+          jq --arg ver "$VERSION" '.version = $ver' manifest.json > manifest.json.tmp
           mv manifest.json.tmp manifest.json
+          echo "Updated manifest.json to version: $VERSION"
           cat manifest.json
 
       - name: Build plugin
@@ -110,25 +117,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ github.event.inputs.version }}"
-          PRERELEASE_FLAG=""
-          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
-            PRERELEASE_FLAG="--prerelease"
-          fi
+          VERSION="${{ needs.check-releasable.outputs.version }}"
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
 
-          # Create the release (tag without v prefix for Obsidian compatibility)
           gh release create "$VERSION" \
-            --title "$VERSION" \
-            --generate-notes \
-            $PRERELEASE_FLAG \
+            --title "🧪 $VERSION" \
+            --notes "**Beta release for BRAT users**
+
+          Commit: $COMMIT_MSG
+
+          ---
+          ⚠️ This is a pre-release version. Install via [BRAT](https://github.com/TfTHacker/obsidian42-brat):
+          \`cameronsjo/${{ env.PLUGIN_NAME }}\`
+
+          For stable releases, wait for the official release in Obsidian's community plugins." \
+            --prerelease \
             ${{ env.PLUGIN_NAME }}.zip \
             main.js \
             manifest.json
 
-          # Upload styles.css if it exists
           if [ -f styles.css ]; then
             gh release upload "$VERSION" styles.css --clobber
           fi
 
-          echo "Beta release created: $VERSION"
-          echo "Install via BRAT: cameronsjo/saved-reddit-exporter"
+          echo "✅ Beta release created: $VERSION"

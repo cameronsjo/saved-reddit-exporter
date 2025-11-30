@@ -19,7 +19,8 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
       version: ${{ steps.release.outputs.version }}
-      pr: ${{ steps.release.outputs.pr }}
+      prs_created: ${{ steps.release.outputs.prs_created }}
+      pr_branch: ${{ steps.release.outputs.pr && fromJson(steps.release.outputs.pr).headBranchName || '' }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -30,35 +31,45 @@ jobs:
   # Update versions.json when release PR is created/updated
   update-versions-json:
     needs: release-please
-    if: ${{ needs.release-please.outputs.prs_created == 'true' }}
+    if: ${{ needs.release-please.outputs.prs_created == 'true' && needs.release-please.outputs.pr_branch != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: release-please--branches--main
+          ref: ${{ needs.release-please.outputs.pr_branch }}
           fetch-depth: 0
 
       - name: Update versions.json
         run: |
-          VERSION="${{ needs.release-please.outputs.version }}"
-          if [ -n "$VERSION" ]; then
+          # Extract version from the PR branch's package.json
+          VERSION=$(jq -r '.version' package.json)
+          echo "Version from package.json: $VERSION"
+
+          if [ -n "$VERSION" ] && [ "$VERSION" != "null" ]; then
             # Get minAppVersion from manifest.json
             MIN_VERSION=$(jq -r '.minAppVersion' manifest.json)
+            echo "minAppVersion: $MIN_VERSION"
+
             # Add new version entry to versions.json
             jq --arg ver "$VERSION" --arg min "$MIN_VERSION" '. + {($ver): $min}' versions.json > versions.json.tmp
             mv versions.json.tmp versions.json
+
+            echo "Updated versions.json:"
+            cat versions.json
 
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add versions.json
             git commit -m "chore: update versions.json for $VERSION" || echo "No changes to commit"
             git push
+          else
+            echo "Could not determine version, skipping versions.json update"
           fi
 
-  # Build and upload release assets when release is created
+  # Build and upload release assets when release is created (stable release)
   build-release:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -75,15 +86,6 @@ jobs:
       - name: Build plugin
         run: npm run build
 
-      - name: Check for styles.css
-        id: check_styles
-        run: |
-          if [ -f styles.css ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
       - name: Package plugin
         run: |
           mkdir ${{ env.PLUGIN_NAME }}
@@ -97,14 +99,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Upload required files
           gh release upload ${{ needs.release-please.outputs.tag_name }} \
             ${{ env.PLUGIN_NAME }}.zip \
             main.js \
             manifest.json \
             --clobber
 
-          # Upload styles.css only if it exists
           if [ -f styles.css ]; then
             gh release upload ${{ needs.release-please.outputs.tag_name }} styles.css --clobber
           fi
+
+      - name: Clean up beta prereleases for this version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.release-please.outputs.version }}"
+          echo "Cleaning up beta releases for version $VERSION"
+
+          # Delete all beta prereleases that match this version
+          gh release list --limit 100 | grep "${VERSION}-beta" | awk '{print $1}' | while read tag; do
+            echo "Deleting beta release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
+          done
+
+          echo "✅ Stable release $VERSION published, beta releases cleaned up"
