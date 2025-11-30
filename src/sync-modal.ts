@@ -56,10 +56,11 @@ export class SyncManagerModal extends Modal {
   }
 
   onOpen() {
-    const { contentEl } = this;
+    const { contentEl, modalEl } = this;
     contentEl.empty();
-    contentEl.addClass('sync-manager-modal');
-    contentEl.style.width = '750px';
+
+    // Apply modal class for CSS styling (width: 90vw, max-width: 1100px)
+    modalEl.addClass('sync-manager-modal');
 
     this.setupKeyboardNavigation();
     this.buildUI();

@@ -181,3 +181,319 @@
 .markdown-rendered .reddit-score-neutral {
 	color: var(--text-muted);
 }
+
+/* ============================================================================
+   Sync Manager Modal
+   ============================================================================ */
+
+.sync-manager-modal {
+	width: 90vw !important;
+	max-width: 1100px !important;
+	min-width: 600px;
+	height: 80vh;
+	max-height: 800px;
+}
+
+.sync-manager-modal .modal-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 0;
+}
+
+/* Stats bar */
+.sync-stats-bar {
+	display: flex;
+	gap: 1.5em;
+	padding: 1em 1.5em;
+	background: var(--background-secondary);
+	border-bottom: 1px solid var(--background-modifier-border);
+	flex-wrap: wrap;
+}
+
+.sync-stats-bar .stat-item {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+}
+
+.sync-stats-bar .stat-label {
+	color: var(--text-muted);
+	font-size: 0.9em;
+}
+
+.sync-stats-bar .stat-value {
+	font-weight: 600;
+}
+
+.sync-stats-bar .stat-value.imported { color: var(--text-success); }
+.sync-stats-bar .stat-value.pending { color: var(--interactive-accent); }
+.sync-stats-bar .stat-value.filtered { color: var(--text-warning); }
+.sync-stats-bar .stat-value.orphaned { color: var(--text-error); }
+
+/* Tab bar */
+.sync-tab-bar {
+	display: flex;
+	gap: 0.25em;
+	padding: 0.75em 1.5em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.sync-tab-bar button {
+	padding: 0.5em 1em;
+	border-radius: 6px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 0.9em;
+	transition: all 0.15s ease;
+}
+
+.sync-tab-bar button:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.sync-tab-bar button.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+/* Search and filter bar */
+.sync-filter-bar {
+	display: flex;
+	gap: 1em;
+	padding: 0.75em 1.5em;
+	border-bottom: 1px solid var(--background-modifier-border);
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.sync-filter-bar input[type="text"] {
+	flex: 1;
+	min-width: 200px;
+	padding: 0.5em 0.75em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	font-size: 0.9em;
+}
+
+.sync-filter-bar select {
+	padding: 0.5em 0.75em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	background: var(--background-primary);
+	font-size: 0.9em;
+	min-width: 120px;
+}
+
+/* Item list container */
+.sync-item-list {
+	flex: 1;
+	overflow-y: auto;
+	padding: 0;
+}
+
+/* Individual item row */
+.sync-item-row {
+	display: grid;
+	grid-template-columns: auto auto 1fr auto auto auto;
+	gap: 1em;
+	padding: 0.75em 1.5em;
+	border-bottom: 1px solid var(--background-modifier-border);
+	align-items: center;
+	transition: background 0.1s ease;
+}
+
+.sync-item-row:hover {
+	background: var(--background-modifier-hover);
+}
+
+.sync-item-row.focused {
+	background: var(--background-modifier-active-hover);
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+.sync-item-row.selected {
+	background: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
+}
+
+/* Checkbox */
+.sync-item-row input[type="checkbox"] {
+	width: 18px;
+	height: 18px;
+	cursor: pointer;
+}
+
+/* Status icon */
+.sync-status-icon {
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.1em;
+}
+
+.sync-status-icon.imported { color: var(--text-success); }
+.sync-status-icon.pending { color: var(--interactive-accent); }
+.sync-status-icon.filtered { color: var(--text-warning); }
+.sync-status-icon.override-pending { color: var(--text-accent); }
+.sync-status-icon.orphaned { color: var(--text-error); }
+
+/* Item content */
+.sync-item-content {
+	display: flex;
+	flex-direction: column;
+	gap: 0.25em;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.sync-item-title {
+	font-weight: 500;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.sync-item-meta {
+	display: flex;
+	gap: 0.75em;
+	font-size: 0.85em;
+	color: var(--text-muted);
+	flex-wrap: wrap;
+}
+
+.sync-item-meta .subreddit {
+	color: var(--text-accent);
+}
+
+.sync-item-meta .type {
+	padding: 0.1em 0.4em;
+	background: var(--background-modifier-form-field);
+	border-radius: 3px;
+}
+
+/* Score column */
+.sync-item-score {
+	min-width: 60px;
+	text-align: right;
+	font-size: 0.9em;
+	color: var(--text-muted);
+}
+
+/* Date column */
+.sync-item-date {
+	min-width: 70px;
+	text-align: right;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+/* Action bar */
+.sync-action-bar {
+	display: flex;
+	gap: 0.75em;
+	padding: 1em 1.5em;
+	border-top: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.sync-action-bar .keyboard-hints {
+	display: flex;
+	gap: 1em;
+	font-size: 0.8em;
+	color: var(--text-muted);
+	margin-right: auto;
+	flex-wrap: wrap;
+}
+
+.sync-action-bar .keyboard-hints kbd {
+	display: inline-block;
+	padding: 0.15em 0.4em;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	font-family: var(--font-monospace);
+	font-size: 0.9em;
+}
+
+.sync-action-bar button {
+	padding: 0.5em 1em;
+	border-radius: 6px;
+	border: none;
+	cursor: pointer;
+	font-size: 0.9em;
+	transition: all 0.15s ease;
+}
+
+.sync-action-bar button.primary {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.sync-action-bar button.primary:hover {
+	filter: brightness(1.1);
+}
+
+.sync-action-bar button.secondary {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.sync-action-bar button.secondary:hover {
+	background: var(--background-modifier-active-hover);
+}
+
+.sync-action-bar button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Empty state */
+.sync-empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 3em;
+	color: var(--text-muted);
+	text-align: center;
+	gap: 0.5em;
+}
+
+.sync-empty-state .icon {
+	font-size: 2em;
+	opacity: 0.5;
+}
+
+/* Filter reason tooltip */
+.sync-filter-reason {
+	font-size: 0.8em;
+	color: var(--text-warning);
+	padding: 0.25em 0.5em;
+	background: color-mix(in srgb, var(--text-warning) 15%, transparent);
+	border-radius: 4px;
+	margin-top: 0.25em;
+}
+
+/* Override button */
+.sync-override-btn {
+	font-size: 0.75em;
+	padding: 0.2em 0.5em;
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border: none;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.sync-override-btn:hover {
+	filter: brightness(1.1);
+}
