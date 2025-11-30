@@ -279,7 +279,8 @@ export class ContentFormatter {
   }
 
   private formatCommentsSection(comments: RedditComment[], postAuthor: string): string {
-    let content = '\n\n---\n\n## 💬 Top Comments\n\n';
+    const totalComments = this.countTotalComments(comments);
+    let content = `\n\n---\n\n## Comments (${totalComments})\n\n`;
 
     for (const comment of comments) {
       content += this.formatSingleComment(comment, postAuthor);
@@ -295,10 +296,10 @@ export class ContentFormatter {
   ): string {
     const indentStr = '> '.repeat(indent);
     const isOP = comment.author === postAuthor;
-    const opBadge = isOP ? ' 👑 **OP**' : '';
+    const opBadge = isOP ? ' [OP]' : '';
     const date = new Date(comment.created_utc * 1000).toLocaleDateString();
 
-    let content = `${indentStr}**u/${comment.author}**${opBadge} • ⬆️ ${comment.score} • ${date}\n`;
+    let content = `${indentStr}**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}\n`;
     content += `${indentStr}\n`;
 
     // Format comment body with proper indentation
@@ -327,33 +328,41 @@ export class ContentFormatter {
   ): Promise<string> {
     let content = '';
 
-    // Origin badge
-    const originLabel = this.getOriginLabel(contentOrigin);
-    content += `> ${this.getOriginEmoji(contentOrigin)} **${originLabel}** • `;
-
-    // Subreddit badge
-    content += `**r/${data.subreddit}** `;
-    if (data.link_flair_text) {
-      content += `• \`${data.link_flair_text}\` `;
-    }
-    content += `• 👤 u/${data.author} `;
-    content += `• ⬆️ ${data.score} `;
-    content += `• 💬 ${data.num_comments}`;
-
-    // Status indicators
-    if (data.stickied) content += ` • 📌`;
-    if (data.locked) content += ` • 🔒`;
-    if (data.archived) content += ` • 📦`;
-    if (data.spoiler) content += ` • ⚠️ SPOILER`;
-    if (data.over_18) content += ` • 🔞 NSFW`;
+    // Build status badges array
+    const badges: string[] = [];
+    if (data.stickied) badges.push('📌 Stickied');
+    if (data.locked) badges.push('🔒 Locked');
+    if (data.archived) badges.push('📦 Archived');
+    if (data.spoiler) badges.push('⚠️ Spoiler');
+    if (data.over_18) badges.push('🔞 NSFW');
     if (data.total_awards_received && data.total_awards_received > 0) {
-      content += ` • 🏆 ${data.total_awards_received}`;
+      badges.push(`🏆 ${data.total_awards_received} awards`);
     }
-    content += `\n\n`;
+
+    // Build metadata line
+    const originLabel = this.getOriginLabel(contentOrigin);
+    const metadataParts = [
+      `**r/${data.subreddit}**`,
+      data.link_flair_text ? `\`${data.link_flair_text}\`` : null,
+      `u/${data.author}`,
+      `${data.score} points`,
+      `${data.num_comments} comments`,
+    ].filter(Boolean);
+
+    // Format as info callout
+    content += `> [!info] ${this.getOriginEmoji(contentOrigin)} ${originLabel}\n`;
+    content += `> ${metadataParts.join(' · ')}\n`;
+    if (badges.length > 0) {
+      content += `> \n> ${badges.join(' · ')}\n`;
+    }
+    content += `\n`;
 
     // Crosspost notice
     if (isCrosspost && this.settings.preserveCrosspostMetadata && originalData) {
-      content += `> 🔄 **Crosspost** from r/${originalData.subreddit} by u/${originalData.crosspost_parent_list?.[0]?.author || 'unknown'}\n\n`;
+      const originalSubreddit =
+        originalData.crosspost_parent_list?.[0]?.subreddit || originalData.subreddit;
+      const originalAuthor = originalData.crosspost_parent_list?.[0]?.author || 'unknown';
+      content += `> [!tip] Crosspost\n> Original: r/${originalSubreddit} by u/${originalAuthor}\n\n`;
     }
 
     // Title
@@ -400,83 +409,72 @@ export class ContentFormatter {
   ): string {
     let content = '';
 
-    // Origin badge
+    // Build metadata
     const originLabel = this.getOriginLabel(contentOrigin);
-    content += `> ${this.getOriginEmoji(contentOrigin)} **${originLabel}** • `;
+    const opBadge = data.is_submitter ? ' · OP' : '';
+    const depthInfo =
+      typeof data.depth === 'number' && data.depth > 0 ? ` · Depth ${data.depth}` : '';
 
-    // Parent post context
-    content += `**r/${data.subreddit}** • 👤 u/${data.author} `;
-    if (data.is_submitter) {
-      content += `👑 **OP** `;
-    }
-    content += `• ⬆️ ${data.score}`;
-
-    // Add depth indicator if available
-    if (typeof data.depth === 'number' && data.depth > 0) {
-      content += ` • 📊 Depth: ${data.depth}`;
-    }
-    content += `\n\n`;
-
-    content += `# 💬 Comment on: ${data.link_title || 'Unknown Post'}\n\n`;
-    content += `> 📝 [View original post](https://reddit.com${data.link_permalink || ''})\n\n`;
-
-    // Add reply type indicator
+    // Determine context type
+    let contextNote = '';
     if (data.parent_id) {
       const parentType = RedditApiClient.getParentType(data.parent_id);
-      if (parentType === 'comment') {
-        content += `↩️ *This is a reply to another comment*\n\n`;
-      } else {
-        content += `💬 *This is a top-level comment on the post*\n\n`;
-      }
+      contextNote = parentType === 'comment' ? 'Reply to comment' : 'Top-level comment';
     }
+
+    // Format as quote callout
+    content += `> [!quote] ${this.getOriginEmoji(contentOrigin)} ${originLabel}\n`;
+    content += `> r/${data.subreddit} · u/${data.author}${opBadge} · ${data.score} points${depthInfo}\n`;
+    if (contextNote) {
+      content += `> \n> ${contextNote}\n`;
+    }
+    content += `\n`;
+
+    content += `# Comment on: ${data.link_title || 'Unknown Post'}\n\n`;
+    content += `[View original post →](https://reddit.com${data.link_permalink || ''})\n\n`;
 
     // Add parent context section if available
     if (data.parent_comments && data.parent_comments.length > 0) {
       content += this.formatParentContext(data.parent_comments);
-      content += `## 💬 Your Saved Comment\n\n`;
+      content += `## Your Comment\n\n`;
     }
 
     return content;
   }
 
   /**
-   * Format parent comments as a context section
+   * Format parent comments as a collapsible context section
    */
   private formatParentContext(parentComments: RedditItemData[]): string {
-    let content = `## 📜 Parent Context\n\n`;
-    content += `*Showing ${parentComments.length} parent comment(s) for context*\n\n`;
+    const plural = parentComments.length === 1 ? '' : 's';
+    let content = `> [!note]- Parent Context (${parentComments.length} comment${plural})\n`;
 
     for (let i = 0; i < parentComments.length; i++) {
       const parent = parentComments[i];
-      const indentLevel = i;
-      const indent = '> '.repeat(indentLevel);
       const date = new Date(parent.created_utc * 1000).toLocaleDateString();
+      const indent = '> ' + '> '.repeat(i);
 
-      // Author with badges
-      let authorLine = `${indent}**u/${parent.author}**`;
-      if (parent.is_submitter) {
-        authorLine += ' 👑 OP';
-      }
-      if (parent.distinguished === 'moderator') {
-        authorLine += ' 🛡️ MOD';
-      } else if (parent.distinguished === 'admin') {
-        authorLine += ' 👑 ADMIN';
-      }
-      authorLine += ` • ⬆️ ${parent.score} • ${date}\n`;
-      content += authorLine;
+      // Build badges
+      const badges: string[] = [];
+      if (parent.is_submitter) badges.push('OP');
+      if (parent.distinguished === 'moderator') badges.push('MOD');
+      else if (parent.distinguished === 'admin') badges.push('ADMIN');
+      const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
 
+      // Author line
+      content += `${indent}\n`;
+      content += `${indent}**u/${parent.author}**${badgeStr} · ${parent.score} points · ${date}\n`;
       content += `${indent}\n`;
 
-      // Truncated body
+      // Body
       const bodyText = this.truncateText(parent.body || '', 500);
       const bodyLines = this.convertRedditMarkdown(bodyText).split('\n');
       for (const line of bodyLines) {
         content += `${indent}${line}\n`;
       }
-      content += '\n';
     }
 
-    content += '---\n\n';
+    content += `\n`;
     return content;
   }
 
@@ -484,25 +482,20 @@ export class ContentFormatter {
    * Format reply comments section
    */
   private formatReplies(childComments: RedditItemData[], postAuthor: string): string {
-    let content = `\n\n---\n\n## 💬 Replies (${childComments.length})\n\n`;
+    let content = `\n\n---\n\n## Replies (${childComments.length})\n\n`;
 
     for (const reply of childComments) {
       const date = new Date(reply.created_utc * 1000).toLocaleDateString();
       const indent = '> '.repeat(reply.depth || 0);
 
-      // Author with badges
-      let authorLine = `${indent}**u/${reply.author}**`;
-      if (reply.author === postAuthor || reply.is_submitter) {
-        authorLine += ' 👑 OP';
-      }
-      if (reply.distinguished === 'moderator') {
-        authorLine += ' 🛡️ MOD';
-      } else if (reply.distinguished === 'admin') {
-        authorLine += ' 👑 ADMIN';
-      }
-      authorLine += ` • ⬆️ ${reply.score} • ${date}\n`;
-      content += authorLine;
+      // Build badges
+      const badges: string[] = [];
+      if (reply.author === postAuthor || reply.is_submitter) badges.push('OP');
+      if (reply.distinguished === 'moderator') badges.push('MOD');
+      else if (reply.distinguished === 'admin') badges.push('ADMIN');
+      const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
 
+      content += `${indent}**u/${reply.author}**${badgeStr} · ${reply.score} points · ${date}\n`;
       content += `${indent}\n`;
 
       // Format body
@@ -679,10 +672,11 @@ export class ContentFormatter {
   private async formatGalleryContent(data: RedditItemData): Promise<string> {
     const galleryImages = this.mediaHandler.extractGalleryImages(data);
     if (galleryImages.length === 0) {
-      return `> ⚠️ Gallery post with no accessible images\n\n`;
+      return `> [!warning] Gallery post with no accessible images\n\n`;
     }
 
-    let content = `📸 **Gallery** (${galleryImages.length} images)\n\n`;
+    const plural = galleryImages.length === 1 ? '' : 's';
+    let content = `> [!example] Gallery (${galleryImages.length} image${plural})\n\n`;
 
     // Download gallery images if enabled
     const shouldDownload =
@@ -706,7 +700,7 @@ export class ContentFormatter {
       const downloadedPath = downloadedPaths[i];
 
       // Image header with number
-      content += `### Image ${imageNumber}/${galleryImages.length}`;
+      content += `### ${imageNumber}/${galleryImages.length}`;
       if (image.caption) {
         content += `: ${image.caption}`;
       }
@@ -715,30 +709,30 @@ export class ContentFormatter {
       // Display the image
       if (downloadedPath) {
         const filename = this.extractFilename(downloadedPath);
-        if (image.isAnimated) {
-          content += `![[${filename}]]\n`;
-          content += `*${image.isAnimated ? '🎞️ Animated' : '📸 Image'} - Downloaded locally*\n\n`;
-        } else {
-          content += `![[${filename}]]\n`;
-          content += `*Downloaded locally*\n\n`;
+        content += `![[${filename}]]\n\n`;
+
+        // Metadata line
+        const metadata: string[] = [];
+        if (image.isAnimated) metadata.push('Animated');
+        if (image.width && image.height) metadata.push(`${image.width}×${image.height}`);
+        if (metadata.length > 0) {
+          content += `*${metadata.join(' · ')}*\n\n`;
         }
       } else {
         // Use external URL
         if (image.isAnimated && image.mp4Url) {
-          content += `🎞️ [View Animation](${image.mp4Url})\n\n`;
+          content += `[View animation →](${image.mp4Url})\n\n`;
         } else {
           content += `![Image ${imageNumber}](${image.url})\n\n`;
         }
-      }
-
-      // Add resolution info if available
-      if (image.width && image.height) {
-        content += `*Resolution: ${image.width}×${image.height}*\n\n`;
+        if (image.width && image.height) {
+          content += `*${image.width}×${image.height}*\n\n`;
+        }
       }
 
       // Add outbound link if present
       if (image.outboundUrl) {
-        content += `🔗 [Link](${image.outboundUrl})\n\n`;
+        content += `[External link →](${image.outboundUrl})\n\n`;
       }
     }
 
@@ -750,26 +744,25 @@ export class ContentFormatter {
    */
   private formatPollContent(data: RedditItemData): string {
     const pollData = data.poll_data!;
-    let content = `📊 **Poll**\n\n`;
 
     // Poll status
     const isEnded = pollData.voting_end_timestamp
       ? Date.now() > pollData.voting_end_timestamp
       : false;
 
+    const votedNote = pollData.user_selection ? ' · You voted' : '';
+
+    let content = '';
     if (isEnded) {
-      content += `> ✅ **Poll has ended**\n\n`;
+      content += `> [!success] Poll (Ended)${votedNote}\n`;
+      content += `> ${pollData.total_vote_count.toLocaleString()} total votes\n\n`;
     } else if (pollData.voting_end_timestamp) {
       const endDate = new Date(pollData.voting_end_timestamp).toLocaleString();
-      content += `> ⏱️ **Voting ends:** ${endDate}\n\n`;
-    }
-
-    // Total votes
-    content += `**Total votes:** ${pollData.total_vote_count.toLocaleString()}\n\n`;
-
-    // User's selection indicator
-    if (pollData.user_selection) {
-      content += `*You voted in this poll*\n\n`;
+      content += `> [!info] Poll (Ends ${endDate})${votedNote}\n`;
+      content += `> ${pollData.total_vote_count.toLocaleString()} total votes\n\n`;
+    } else {
+      content += `> [!info] Poll${votedNote}\n`;
+      content += `> ${pollData.total_vote_count.toLocaleString()} total votes\n\n`;
     }
 
     // Options table
@@ -794,7 +787,7 @@ export class ContentFormatter {
 
     // Visual bar chart representation
     if (pollData.total_vote_count > 0) {
-      content += `### Results Visualization\n\n`;
+      content += `### Results\n\n`;
 
       for (const option of pollData.options) {
         const voteCount = option.vote_count ?? 0;
@@ -820,8 +813,7 @@ export class ContentFormatter {
       return null;
     }
 
-    let content = '\n\n---\n\n## 🔗 External Links\n\n';
-    content += `*${externalLinks.length} external link(s) found*\n\n`;
+    let content = `\n\n---\n\n> [!abstract]- External Links (${externalLinks.length})\n`;
 
     for (const link of externalLinks) {
       let archiveUrl: string | undefined;
@@ -839,21 +831,20 @@ export class ContentFormatter {
       }
 
       // Format the link entry
-      content += `- **[${link.domain}](${link.url})**`;
-      content += ` *(from ${link.source})*`;
+      content += `> - [${link.domain}](${link.url}) *(${link.source})*\n`;
 
       if (this.settings.includeArchiveLinks) {
         if (archiveUrl) {
-          content += `\n  - 📚 [Archived version](${archiveUrl})`;
+          content += `>   - [Archived version →](${archiveUrl})\n`;
         } else {
           // Provide a "save to archive" link
           const saveUrl = `https://web.archive.org/save/${link.url}`;
-          content += `\n  - 📥 [Save to Archive](${saveUrl})`;
+          content += `>   - [Save to archive →](${saveUrl})\n`;
         }
       }
-      content += '\n';
     }
 
+    content += '\n';
     return content;
   }
 
@@ -887,12 +878,15 @@ export class ContentFormatter {
       }
     }
 
-    content += `**Tags:** ${tags.join(' ')}\n\n`;
-    content += `🔗 [View on Reddit](https://reddit.com${data.permalink})\n`;
+    // Tags without prefix label
+    content += `${tags.join(' ')}\n\n`;
 
+    // Links on one line with arrow format and separator
+    const links: string[] = [`[View on Reddit →](https://reddit.com${data.permalink})`];
     if (!isComment && data.url && !data.is_self) {
-      content += `🌐 [Original Source](${data.url})`;
+      links.push(`[Original source →](${data.url})`);
     }
+    content += links.join(' · ');
 
     return content;
   }
