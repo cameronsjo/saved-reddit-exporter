@@ -872,8 +872,16 @@ export default class RedditSavedPlugin extends Plugin {
   async reprocessItems(syncItems: SyncItem[]): Promise<{ success: number; failed: number }> {
     let success = 0;
     let failed = 0;
+    const total = syncItems.length;
+    const startTime = Date.now();
 
-    for (const syncItem of syncItems) {
+    // Show progress every N items or at minimum intervals
+    const progressInterval = Math.max(1, Math.floor(total / 10)); // ~10 updates max
+
+    for (let i = 0; i < syncItems.length; i++) {
+      const syncItem = syncItems[i];
+      const processed = i + 1;
+
       if (!syncItem.item || !syncItem.vaultPath) {
         failed++;
         continue;
@@ -923,9 +931,18 @@ export default class RedditSavedPlugin extends Plugin {
         console.error(`Error reprocessing item ${syncItem.item.data.id}:`, error);
         failed++;
       }
+
+      // Show progress updates
+      if (processed % progressInterval === 0 || processed === total) {
+        const percent = Math.round((processed / total) * 100);
+        const elapsed = (Date.now() - startTime) / 1000;
+        const rate = elapsed > 0 ? (processed / elapsed).toFixed(1) : '0';
+        new Notice(`Reprocessing: ${processed}/${total} (${percent}%) · ${rate}/sec`);
+      }
     }
 
-    new Notice(`Reprocess complete: ${success} updated, ${failed} failed`);
+    const totalTime = ((Date.now() - startTime) / 1000).toFixed(1);
+    new Notice(`Reprocess complete: ${success} updated, ${failed} failed (${totalTime}s)`);
     return { success, failed };
   }
 
