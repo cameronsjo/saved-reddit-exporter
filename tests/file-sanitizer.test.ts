@@ -29,6 +29,45 @@ describe('file-sanitizer', () => {
       expect(sanitizeFileName('file\\name/test')).toBe('file-name-test');
       expect(sanitizeFileName('file*name')).toBe('file-name');
     });
+
+    it('should remove emojis from filenames', () => {
+      expect(sanitizeFileName('Hello 🌍 World')).toBe('Hello World');
+      expect(sanitizeFileName('🔥 Hot Take 🔥')).toBe('Hot Take');
+      expect(sanitizeFileName('Test 😀😁😂 Post')).toBe('Test Post');
+    });
+
+    it('should remove various types of emojis', () => {
+      // Face emojis
+      expect(sanitizeFileName('Happy 😊 Day')).toBe('Happy Day');
+      // Object emojis
+      expect(sanitizeFileName('Phone 📱 Call')).toBe('Phone Call');
+      // Animal emojis
+      expect(sanitizeFileName('Cat 🐱 Dog 🐶')).toBe('Cat Dog');
+      // Flag emojis
+      expect(sanitizeFileName('USA 🇺🇸 Flag')).toBe('USA Flag');
+      // Weather emojis
+      expect(sanitizeFileName('Sunny ☀️ Day')).toBe('Sunny Day');
+    });
+
+    it('should handle emoji-only filenames', () => {
+      expect(sanitizeFileName('🎉🎊🎈')).toBe('Untitled');
+      expect(sanitizeFileName('👍')).toBe('Untitled');
+    });
+
+    it('should remove special Unicode symbols', () => {
+      // Checkmarks and crosses
+      expect(sanitizeFileName('Done ✓ Task')).toBe('Done Task');
+      expect(sanitizeFileName('Failed ✗ Test')).toBe('Failed Test');
+      // Arrows
+      expect(sanitizeFileName('Next ➡️ Step')).toBe('Next Step');
+      // Stars
+      expect(sanitizeFileName('5 ⭐ Rating')).toBe('5 Rating');
+    });
+
+    it('should handle mixed content with emojis and invalid chars', () => {
+      expect(sanitizeFileName('🔥 Hot: Take 🔥')).toBe('Hot- Take');
+      expect(sanitizeFileName('Test <emoji> 😀 file')).toBe('Test -emoji- file');
+    });
   });
 
   describe('isPathSafe', () => {

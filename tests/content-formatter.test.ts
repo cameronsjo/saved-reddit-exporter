@@ -96,7 +96,7 @@ describe('ContentFormatter', () => {
       expect(result).toContain('type: reddit-comment');
       expect(result).toContain('post_title: "Original Post Title"');
       expect(result).toContain('is_submitter: false');
-      expect(result).toContain('# 💬 Comment on: Original Post Title');
+      expect(result).toContain('# Comment on: Original Post Title');
       expect(result).toContain('This is a test comment');
     });
 
@@ -204,8 +204,8 @@ describe('ContentFormatter', () => {
       const result = await formatter.formatRedditContent(commentData, true);
 
       expect(result).toContain('type: reddit-comment');
-      expect(result).toContain('👑 **OP**');
-      expect(result).toContain('💬 Comment on: Original Post Title');
+      expect(result).toContain(' · OP');
+      expect(result).toContain('Comment on: Original Post Title');
       expect(result).toContain('This is a comment');
     });
 
@@ -449,10 +449,10 @@ describe('ContentFormatter', () => {
 
       const result = await formatter.formatRedditContent(postData, false, 'saved', comments);
 
-      expect(result).toContain('## 💬 Top Comments');
+      expect(result).toContain('## Comments (2)');
       expect(result).toContain('**u/commenter1**');
       expect(result).toContain('This is a great post!');
-      expect(result).toContain('**u/postauthor** 👑 **OP**');
+      expect(result).toContain('**u/postauthor** [OP]');
       expect(result).toContain('Thanks for the feedback!');
       expect(result).toContain('exported_comments: 2');
     });
