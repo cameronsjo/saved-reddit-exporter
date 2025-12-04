@@ -32,6 +32,8 @@ We're breaking your content out of Reddit jail.
 
 **Never hit the limit again.** Export, unsave, repeat. Keep Reddit under 1000, keep everything in Obsidian. The system _works_.
 
+**Works on mobile.** iPhone, iPad, Android—wherever Obsidian runs. Same features, same flow, no compromises. Export your saves from the couch.
+
 **Large imports don't flop.** Internet dies at post 300? Resume where you left off. We have checkpoints like a video game because we're not animals.
 
 ## The Vibe
