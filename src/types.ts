@@ -58,10 +58,23 @@ export interface RedditSavedSettings {
   checkWaybackArchive: boolean; // Check if links are already archived
   includeArchiveLinks: boolean; // Include Wayback Machine links in output
   extractExternalLinks: boolean; // Extract and list external links from content
+  // Comment formatting settings
+  postCommentFormat: CommentFormatStyle; // Format style for comments on posts
+  savedCommentFormat: CommentFormatStyle; // Format style for saved comment context/replies
+  maxCommentDepth: number; // Maximum visual nesting depth (1-5)
+  collapseDeepThreads: boolean; // Collapse threads beyond max depth into callouts
 }
 
 export type PostType = 'text' | 'link' | 'image' | 'video';
 export type FilterMode = 'include' | 'exclude';
+
+/**
+ * Comment formatting style options
+ * - nested: Traditional blockquote nesting (current behavior)
+ * - flat: Flat list with visual thread indicators (↳)
+ * - threaded: Collapsible callouts for deep threads
+ */
+export type CommentFormatStyle = 'nested' | 'flat' | 'threaded';
 export type DateRangePreset =
   | 'all'
   | 'last_day'
