@@ -315,11 +315,6 @@ export class SyncManagerModal extends Modal {
   private buildItemList() {
     const { contentEl } = this;
     this.listContainer = contentEl.createDiv({ cls: 'sync-item-list' });
-    this.listContainer.style.maxHeight = '350px';
-    this.listContainer.style.overflowY = 'auto';
-    this.listContainer.style.border = '1px solid var(--background-modifier-border)';
-    this.listContainer.style.borderRadius = '4px';
-    this.listContainer.style.marginBottom = '10px';
     this.listContainer.tabIndex = 0;
 
     this.refreshList();
