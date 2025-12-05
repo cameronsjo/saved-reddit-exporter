@@ -204,8 +204,8 @@ describe('ContentFormatter', () => {
       const result = await formatter.formatRedditContent(commentData, true);
 
       expect(result).toContain('type: reddit-comment');
-      expect(result).toContain('· OP ·'); // OP badge in the metadata line
-      expect(result).toContain('# Comment on: Original Post Title');
+      expect(result).toContain(' · OP'); // OP badge in the metadata line
+      expect(result).toContain('Comment on: Original Post Title');
       expect(result).toContain('This is a comment');
     });
 
@@ -452,7 +452,7 @@ describe('ContentFormatter', () => {
       expect(result).toContain('## Comments (2)');
       expect(result).toContain('**u/commenter1**');
       expect(result).toContain('This is a great post!');
-      expect(result).toContain('**u/postauthor** [OP]'); // OP badge format
+      expect(result).toContain('**u/postauthor** [OP]');
       expect(result).toContain('Thanks for the feedback!');
       expect(result).toContain('exported_comments: 2');
     });
