@@ -6,9 +6,16 @@ import {
   FilterMode,
   DateRangePreset,
   UnsaveMode,
+  CommentFormatStyle,
 } from './types';
 import { FILTER_PRESETS } from './filters';
-import { DEFAULT_FILTER_SETTINGS, COMMENT_CONTEXT_MAX, COMMENT_MAX_DEPTH } from './constants';
+import {
+  DEFAULT_FILTER_SETTINGS,
+  COMMENT_CONTEXT_MAX,
+  COMMENT_MAX_DEPTH,
+  COMMENT_FORMAT_MAX_VISUAL_DEPTH,
+  COMMENT_FORMAT_MIN_VISUAL_DEPTH,
+} from './constants';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 
@@ -369,6 +376,9 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
     }
 
+    // Comment Formatting Section
+    this.displayCommentFormattingSettings(containerEl);
+
     // Advanced Settings Section
     new Setting(containerEl).setName('Advanced settings').setHeading();
 
@@ -673,6 +683,90 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     // Filter Settings Section
     this.displayFilterSettings(containerEl);
+  }
+
+  private displayCommentFormattingSettings(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName('Comment formatting').setHeading();
+
+    const formatInfo = containerEl.createDiv();
+    formatInfo.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '10px',
+      borderRadius: '4px',
+      marginBottom: '15px',
+    });
+
+    formatInfo.createEl('strong', { text: '💬 Comment display styles' });
+    formatInfo.createEl('br');
+    formatInfo.createSpan({
+      text: 'Choose how nested comment threads are displayed in your notes.',
+    });
+    formatInfo.createEl('br');
+    formatInfo.createEl('br');
+    formatInfo.createEl('strong', { text: 'Nested: ' });
+    formatInfo.createSpan({ text: 'Traditional blockquote nesting (> > >)' });
+    formatInfo.createEl('br');
+    formatInfo.createEl('strong', { text: 'Flat: ' });
+    formatInfo.createSpan({ text: 'Flat list with visual thread indicators (↳)' });
+    formatInfo.createEl('br');
+    formatInfo.createEl('strong', { text: 'Threaded: ' });
+    formatInfo.createSpan({ text: 'Collapsible callouts for deep threads' });
+
+    new Setting(containerEl)
+      .setName('Post comment format')
+      .setDesc('Display style for comments on saved posts')
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('nested', 'Nested (blockquotes)')
+          .addOption('flat', 'Flat (thread indicators)')
+          .addOption('threaded', 'Threaded (collapsible)')
+          .setValue(this.settings.postCommentFormat)
+          .onChange(async (value: CommentFormatStyle) => {
+            this.settings.postCommentFormat = value;
+            await this.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Saved comment format')
+      .setDesc('Display style for parent context and replies on saved comments')
+      .addDropdown(dropdown =>
+        dropdown
+          .addOption('nested', 'Nested (blockquotes)')
+          .addOption('flat', 'Flat (thread indicators)')
+          .addOption('threaded', 'Threaded (collapsible)')
+          .setValue(this.settings.savedCommentFormat)
+          .onChange(async (value: CommentFormatStyle) => {
+            this.settings.savedCommentFormat = value;
+            await this.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Max visual depth')
+      .setDesc(
+        `Maximum nesting levels to display (${COMMENT_FORMAT_MIN_VISUAL_DEPTH}-${COMMENT_FORMAT_MAX_VISUAL_DEPTH}). Deeper comments are flattened or collapsed.`
+      )
+      .addSlider(slider =>
+        slider
+          .setLimits(COMMENT_FORMAT_MIN_VISUAL_DEPTH, COMMENT_FORMAT_MAX_VISUAL_DEPTH, 1)
+          .setValue(this.settings.maxCommentDepth)
+          .setDynamicTooltip()
+          .onChange(async value => {
+            this.settings.maxCommentDepth = value;
+            await this.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName('Collapse deep threads')
+      .setDesc('Wrap threads beyond max depth in collapsible callouts')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.collapseDeepThreads).onChange(async value => {
+          this.settings.collapseDeepThreads = value;
+          await this.saveSettings();
+        })
+      );
   }
 
   private displayLinkPreservationSettings(containerEl: HTMLElement): void {

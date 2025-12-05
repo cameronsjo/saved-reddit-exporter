@@ -204,7 +204,7 @@ describe('ContentFormatter', () => {
       const result = await formatter.formatRedditContent(commentData, true);
 
       expect(result).toContain('type: reddit-comment');
-      expect(result).toContain(' · OP');
+      expect(result).toContain(' · OP'); // OP badge in the metadata line
       expect(result).toContain('Comment on: Original Post Title');
       expect(result).toContain('This is a comment');
     });

@@ -4,6 +4,7 @@ import {
   RedditSavedSettings,
   ContentOrigin,
   RedditComment,
+  CommentFormatStyle,
 } from './types';
 import { MediaHandler, GalleryImage } from './media-handler';
 import { RedditApiClient } from './api-client';
@@ -280,26 +281,84 @@ export class ContentFormatter {
 
   private formatCommentsSection(comments: RedditComment[], postAuthor: string): string {
     const totalComments = this.countTotalComments(comments);
+    const format = this.settings.postCommentFormat;
     let content = `\n\n---\n\n## Comments (${totalComments})\n\n`;
 
     for (const comment of comments) {
-      content += this.formatSingleComment(comment, postAuthor);
+      content += this.formatCommentByStyle(comment, postAuthor, 0, format);
     }
 
     return content;
   }
 
-  private formatSingleComment(
+  /**
+   * Format a comment using the selected style
+   */
+  private formatCommentByStyle(
     comment: RedditComment,
     postAuthor: string,
-    indent: number = 0
+    depth: number,
+    format: CommentFormatStyle
   ): string {
-    const indentStr = '> '.repeat(indent);
+    switch (format) {
+      case 'flat':
+        return this.formatFlatComment(comment, postAuthor, depth);
+      case 'threaded':
+        return this.formatThreadedComment(comment, postAuthor, depth);
+      case 'nested':
+      default:
+        return this.formatNestedComment(comment, postAuthor, depth);
+    }
+  }
+
+  /**
+   * Nested format: Traditional blockquote nesting with depth limit
+   */
+  private formatNestedComment(
+    comment: RedditComment,
+    postAuthor: string,
+    depth: number = 0
+  ): string {
+    const maxDepth = this.settings.maxCommentDepth;
+    const visualDepth = Math.min(depth, maxDepth);
+    const indentStr = '> '.repeat(visualDepth);
     const isOP = comment.author === postAuthor;
     const opBadge = isOP ? ' [OP]' : '';
     const date = new Date(comment.created_utc * 1000).toLocaleDateString();
 
-    let content = `${indentStr}**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}\n`;
+    let content = '';
+
+    // If we're beyond max depth and collapse is enabled, wrap in callout
+    if (depth > maxDepth && this.settings.collapseDeepThreads) {
+      const replyCount = comment.replies ? this.countTotalComments(comment.replies) + 1 : 1;
+      const plural = replyCount === 1 ? '' : 's';
+      content += `${indentStr}\n`;
+      content += `${indentStr}> [!quote]- Deep thread (${replyCount} comment${plural})\n`;
+      content += `${indentStr}> **u/${comment.author}**${opBadge} · ${comment.score} points · ${date}\n`;
+      content += `${indentStr}> \n`;
+
+      const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+      for (const line of bodyLines) {
+        content += `${indentStr}> ${line}\n`;
+      }
+
+      // Recursively format replies inside the callout
+      if (comment.replies && comment.replies.length > 0) {
+        for (const reply of comment.replies) {
+          const replyContent = this.formatNestedComment(reply, postAuthor, depth + 1);
+          const replyLines = replyContent.split('\n');
+          for (const line of replyLines) {
+            if (line.trim()) {
+              content += `${indentStr}> ${line}\n`;
+            }
+          }
+        }
+      }
+      content += '\n';
+      return content;
+    }
+
+    content += `${indentStr}**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}\n`;
     content += `${indentStr}\n`;
 
     // Format comment body with proper indentation
@@ -312,7 +371,174 @@ export class ContentFormatter {
     // Format nested replies
     if (comment.replies && comment.replies.length > 0) {
       for (const reply of comment.replies) {
-        content += this.formatSingleComment(reply, postAuthor, indent + 1);
+        content += this.formatNestedComment(reply, postAuthor, depth + 1);
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * Flat format: No nesting, uses visual thread indicators
+   */
+  private formatFlatComment(
+    comment: RedditComment,
+    postAuthor: string,
+    depth: number = 0,
+    parentAuthor?: string
+  ): string {
+    const isOP = comment.author === postAuthor;
+    const opBadge = isOP ? ' [OP]' : '';
+    const date = new Date(comment.created_utc * 1000).toLocaleDateString();
+
+    // Visual depth indicator using arrows
+    const depthIndicator = depth > 0 ? '↳'.repeat(Math.min(depth, 3)) + ' ' : '';
+    const replyNote = parentAuthor ? ` *(replying to u/${parentAuthor})*` : '';
+
+    let content = `> ${depthIndicator}**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}${replyNote}\n`;
+    content += `> \n`;
+
+    // Format comment body
+    const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+    for (const line of bodyLines) {
+      content += `> ${line}\n`;
+    }
+    content += '\n';
+
+    // Format nested replies (flat - no additional indentation)
+    if (comment.replies && comment.replies.length > 0) {
+      // Check if we should collapse deep threads
+      if (depth >= this.settings.maxCommentDepth && this.settings.collapseDeepThreads) {
+        const replyCount = this.countTotalComments(comment.replies);
+        const plural = replyCount === 1 ? '' : 's';
+        content += `> [!note]- ${replyCount} more repl${replyCount === 1 ? 'y' : 'ies'}\n`;
+        for (const reply of comment.replies) {
+          content += this.formatFlatCommentInCallout(reply, postAuthor, depth + 1, comment.author);
+        }
+        content += '\n';
+      } else {
+        for (const reply of comment.replies) {
+          content += this.formatFlatComment(reply, postAuthor, depth + 1, comment.author);
+        }
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * Format flat comment inside a callout (for collapsed threads)
+   */
+  private formatFlatCommentInCallout(
+    comment: RedditComment,
+    postAuthor: string,
+    depth: number,
+    parentAuthor?: string
+  ): string {
+    const isOP = comment.author === postAuthor;
+    const opBadge = isOP ? ' [OP]' : '';
+    const date = new Date(comment.created_utc * 1000).toLocaleDateString();
+    const depthIndicator = '↳'.repeat(Math.min(depth, 3)) + ' ';
+    const replyNote = parentAuthor ? ` *(replying to u/${parentAuthor})*` : '';
+
+    let content = `> ${depthIndicator}**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}${replyNote}\n`;
+    content += `> \n`;
+
+    const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+    for (const line of bodyLines) {
+      content += `> ${line}\n`;
+    }
+    content += `> \n`;
+
+    // Continue with nested replies inside callout
+    if (comment.replies && comment.replies.length > 0) {
+      for (const reply of comment.replies) {
+        content += this.formatFlatCommentInCallout(reply, postAuthor, depth + 1, comment.author);
+      }
+    }
+
+    return content;
+  }
+
+  /**
+   * Threaded format: Uses collapsible callouts for thread organization
+   */
+  private formatThreadedComment(
+    comment: RedditComment,
+    postAuthor: string,
+    depth: number = 0
+  ): string {
+    const isOP = comment.author === postAuthor;
+    const opBadge = isOP ? ' [OP]' : '';
+    const date = new Date(comment.created_utc * 1000).toLocaleDateString();
+    const maxDepth = this.settings.maxCommentDepth;
+
+    let content = '';
+
+    // Determine if this comment has replies
+    const hasReplies = comment.replies && comment.replies.length > 0;
+    const replyCount = hasReplies ? this.countTotalComments(comment.replies!) : 0;
+
+    // Use collapsible callout for comments with replies (after first level)
+    if (depth > 0 && hasReplies) {
+      const plural = replyCount === 1 ? 'y' : 'ies';
+      const expanded = depth < maxDepth ? '' : '-'; // Collapse deep threads
+      content += `> [!quote]${expanded} **u/${comment.author}**${opBadge} · ${comment.score} pts · ${date} · ${replyCount} repl${plural}\n`;
+      content += `> \n`;
+
+      const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+      for (const line of bodyLines) {
+        content += `> ${line}\n`;
+      }
+      content += `> \n`;
+
+      // Format replies inside the callout
+      for (const reply of comment.replies!) {
+        const replyContent = this.formatThreadedComment(reply, postAuthor, depth + 1);
+        const replyLines = replyContent.split('\n');
+        for (const line of replyLines) {
+          if (line.trim()) {
+            content += `> ${line}\n`;
+          }
+        }
+      }
+      content += '\n';
+    } else if (hasReplies) {
+      // Top-level comment with replies
+      content += `**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}\n\n`;
+
+      const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+      content += bodyLines.join('\n') + '\n\n';
+
+      // Format replies
+      if (replyCount > 0) {
+        const plural = replyCount === 1 ? 'y' : 'ies';
+        content += `> [!abstract]- ${replyCount} repl${plural}\n`;
+        for (const reply of comment.replies!) {
+          const replyContent = this.formatThreadedComment(reply, postAuthor, depth + 1);
+          const replyLines = replyContent.split('\n');
+          for (const line of replyLines) {
+            if (line.trim()) {
+              content += `> ${line}\n`;
+            }
+          }
+        }
+        content += '\n';
+      }
+    } else {
+      // Comment without replies
+      if (depth === 0) {
+        content += `**u/${comment.author}**${opBadge} · ${comment.score} points · ${date}\n\n`;
+        const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+        content += bodyLines.join('\n') + '\n\n';
+      } else {
+        content += `**u/${comment.author}**${opBadge} · ${comment.score} pts · ${date}\n`;
+        content += '\n';
+        const bodyLines = this.convertRedditMarkdown(comment.body).split('\n');
+        for (const line of bodyLines) {
+          content += `${line}\n`;
+        }
+        content += '\n';
       }
     }
 
@@ -446,13 +672,33 @@ export class ContentFormatter {
    * Format parent comments as a collapsible context section
    */
   private formatParentContext(parentComments: RedditItemData[]): string {
+    const format = this.settings.savedCommentFormat;
+    const plural = parentComments.length === 1 ? '' : 's';
+
+    switch (format) {
+      case 'flat':
+        return this.formatParentContextFlat(parentComments);
+      case 'threaded':
+        return this.formatParentContextThreaded(parentComments);
+      case 'nested':
+      default:
+        return this.formatParentContextNested(parentComments);
+    }
+  }
+
+  /**
+   * Format parent context with nested blockquotes
+   */
+  private formatParentContextNested(parentComments: RedditItemData[]): string {
+    const maxDepth = this.settings.maxCommentDepth;
     const plural = parentComments.length === 1 ? '' : 's';
     let content = `> [!note]- Parent Context (${parentComments.length} comment${plural})\n`;
 
     for (let i = 0; i < parentComments.length; i++) {
       const parent = parentComments[i];
       const date = new Date(parent.created_utc * 1000).toLocaleDateString();
-      const indent = '> ' + '> '.repeat(i);
+      const visualDepth = Math.min(i, maxDepth);
+      const indent = '> ' + '> '.repeat(visualDepth);
 
       // Build badges
       const badges: string[] = [];
@@ -479,14 +725,108 @@ export class ContentFormatter {
   }
 
   /**
+   * Format parent context as flat list with thread indicators
+   */
+  private formatParentContextFlat(parentComments: RedditItemData[]): string {
+    const plural = parentComments.length === 1 ? '' : 's';
+    let content = `> [!note]- Parent Context (${parentComments.length} comment${plural})\n`;
+
+    for (let i = 0; i < parentComments.length; i++) {
+      const parent = parentComments[i];
+      const date = new Date(parent.created_utc * 1000).toLocaleDateString();
+      const depthIndicator = i > 0 ? '↳'.repeat(Math.min(i, 3)) + ' ' : '';
+
+      // Build badges
+      const badges: string[] = [];
+      if (parent.is_submitter) badges.push('OP');
+      if (parent.distinguished === 'moderator') badges.push('MOD');
+      else if (parent.distinguished === 'admin') badges.push('ADMIN');
+      const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+
+      content += `> \n`;
+      content += `> ${depthIndicator}**u/${parent.author}**${badgeStr} · ${parent.score} points · ${date}\n`;
+      content += `> \n`;
+
+      const bodyText = this.truncateText(parent.body || '', 500);
+      const bodyLines = this.convertRedditMarkdown(bodyText).split('\n');
+      for (const line of bodyLines) {
+        content += `> ${line}\n`;
+      }
+    }
+
+    content += `\n`;
+    return content;
+  }
+
+  /**
+   * Format parent context with threaded callouts
+   */
+  private formatParentContextThreaded(parentComments: RedditItemData[]): string {
+    const plural = parentComments.length === 1 ? '' : 's';
+    let content = `> [!note]- Parent Context (${parentComments.length} comment${plural})\n`;
+
+    for (let i = 0; i < parentComments.length; i++) {
+      const parent = parentComments[i];
+      const date = new Date(parent.created_utc * 1000).toLocaleDateString();
+
+      // Build badges
+      const badges: string[] = [];
+      if (parent.is_submitter) badges.push('OP');
+      if (parent.distinguished === 'moderator') badges.push('MOD');
+      else if (parent.distinguished === 'admin') badges.push('ADMIN');
+      const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+
+      // Number each parent for clarity
+      const contextNum = `[${i + 1}/${parentComments.length}]`;
+
+      content += `> \n`;
+      content += `> ${contextNum} **u/${parent.author}**${badgeStr} · ${parent.score} points · ${date}\n`;
+      content += `> \n`;
+
+      const bodyText = this.truncateText(parent.body || '', 500);
+      const bodyLines = this.convertRedditMarkdown(bodyText).split('\n');
+      for (const line of bodyLines) {
+        content += `> ${line}\n`;
+      }
+
+      if (i < parentComments.length - 1) {
+        content += `> \n> ---\n`;
+      }
+    }
+
+    content += `\n`;
+    return content;
+  }
+
+  /**
    * Format reply comments section
    */
   private formatReplies(childComments: RedditItemData[], postAuthor: string): string {
+    const format = this.settings.savedCommentFormat;
+
+    switch (format) {
+      case 'flat':
+        return this.formatRepliesFlat(childComments, postAuthor);
+      case 'threaded':
+        return this.formatRepliesThreaded(childComments, postAuthor);
+      case 'nested':
+      default:
+        return this.formatRepliesNested(childComments, postAuthor);
+    }
+  }
+
+  /**
+   * Format replies with nested blockquotes
+   */
+  private formatRepliesNested(childComments: RedditItemData[], postAuthor: string): string {
+    const maxDepth = this.settings.maxCommentDepth;
     let content = `\n\n---\n\n## Replies (${childComments.length})\n\n`;
 
     for (const reply of childComments) {
       const date = new Date(reply.created_utc * 1000).toLocaleDateString();
-      const indent = '> '.repeat(reply.depth || 0);
+      const depth = reply.depth || 0;
+      const visualDepth = Math.min(depth, maxDepth);
+      const indent = '> '.repeat(visualDepth);
 
       // Build badges
       const badges: string[] = [];
@@ -495,16 +835,156 @@ export class ContentFormatter {
       else if (reply.distinguished === 'admin') badges.push('ADMIN');
       const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
 
-      content += `${indent}**u/${reply.author}**${badgeStr} · ${reply.score} points · ${date}\n`;
-      content += `${indent}\n`;
-
-      // Format body
-      const bodyLines = this.convertRedditMarkdown(reply.body || '').split('\n');
-      for (const line of bodyLines) {
-        content += `${indent}${line}\n`;
+      // Check if we should wrap in a collapsible callout for deep threads
+      if (depth > maxDepth && this.settings.collapseDeepThreads) {
+        content += `${indent}> [!quote]- Deep reply\n`;
+        content += `${indent}> **u/${reply.author}**${badgeStr} · ${reply.score} points · ${date}\n`;
+        content += `${indent}> \n`;
+        const bodyLines = this.convertRedditMarkdown(reply.body || '').split('\n');
+        for (const line of bodyLines) {
+          content += `${indent}> ${line}\n`;
+        }
+      } else {
+        content += `${indent}**u/${reply.author}**${badgeStr} · ${reply.score} points · ${date}\n`;
+        content += `${indent}\n`;
+        const bodyLines = this.convertRedditMarkdown(reply.body || '').split('\n');
+        for (const line of bodyLines) {
+          content += `${indent}${line}\n`;
+        }
       }
       content += '\n';
     }
+
+    return content;
+  }
+
+  /**
+   * Format replies as flat list with thread indicators
+   */
+  private formatRepliesFlat(childComments: RedditItemData[], postAuthor: string): string {
+    let content = `\n\n---\n\n## Replies (${childComments.length})\n\n`;
+
+    // Group comments by depth for potential collapsing
+    const maxDepth = this.settings.maxCommentDepth;
+    let deepComments: RedditItemData[] = [];
+
+    for (const reply of childComments) {
+      const depth = reply.depth || 0;
+
+      // If we have deep comments queued and this is a shallower comment, flush them
+      if (deepComments.length > 0 && depth <= maxDepth) {
+        content += `> [!note]- ${deepComments.length} deep repl${deepComments.length === 1 ? 'y' : 'ies'}\n`;
+        for (const deepReply of deepComments) {
+          content += this.formatSingleReplyFlat(deepReply, postAuthor, true);
+        }
+        content += '\n';
+        deepComments = [];
+      }
+
+      if (depth > maxDepth && this.settings.collapseDeepThreads) {
+        deepComments.push(reply);
+      } else {
+        content += this.formatSingleReplyFlat(reply, postAuthor, false);
+      }
+    }
+
+    // Flush any remaining deep comments
+    if (deepComments.length > 0) {
+      content += `> [!note]- ${deepComments.length} deep repl${deepComments.length === 1 ? 'y' : 'ies'}\n`;
+      for (const deepReply of deepComments) {
+        content += this.formatSingleReplyFlat(deepReply, postAuthor, true);
+      }
+      content += '\n';
+    }
+
+    return content;
+  }
+
+  /**
+   * Format a single reply in flat style
+   */
+  private formatSingleReplyFlat(
+    reply: RedditItemData,
+    postAuthor: string,
+    inCallout: boolean
+  ): string {
+    const date = new Date(reply.created_utc * 1000).toLocaleDateString();
+    const depth = reply.depth || 0;
+    const depthIndicator = depth > 0 ? '↳'.repeat(Math.min(depth, 3)) + ' ' : '';
+
+    // Build badges
+    const badges: string[] = [];
+    if (reply.author === postAuthor || reply.is_submitter) badges.push('OP');
+    if (reply.distinguished === 'moderator') badges.push('MOD');
+    else if (reply.distinguished === 'admin') badges.push('ADMIN');
+    const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+
+    let content = `> ${depthIndicator}**u/${reply.author}**${badgeStr} · ${reply.score} points · ${date}\n`;
+    content += `> \n`;
+
+    const bodyLines = this.convertRedditMarkdown(reply.body || '').split('\n');
+    for (const line of bodyLines) {
+      content += `> ${line}\n`;
+    }
+    content += inCallout ? '> \n' : '\n';
+
+    return content;
+  }
+
+  /**
+   * Format replies with threaded callouts
+   */
+  private formatRepliesThreaded(childComments: RedditItemData[], postAuthor: string): string {
+    const maxDepth = this.settings.maxCommentDepth;
+    let content = `\n\n---\n\n## Replies (${childComments.length})\n\n`;
+
+    // Group replies by depth level
+    let currentDepth = -1;
+    let groupedReplies: RedditItemData[] = [];
+
+    const flushGroup = () => {
+      if (groupedReplies.length === 0) return;
+
+      const depthLabel = currentDepth === 0 ? 'Direct replies' : `Depth ${currentDepth} replies`;
+      const expanded = currentDepth < maxDepth ? '' : '-';
+
+      content += `> [!abstract]${expanded} ${depthLabel} (${groupedReplies.length})\n`;
+
+      for (const reply of groupedReplies) {
+        const date = new Date(reply.created_utc * 1000).toLocaleDateString();
+
+        // Build badges
+        const badges: string[] = [];
+        if (reply.author === postAuthor || reply.is_submitter) badges.push('OP');
+        if (reply.distinguished === 'moderator') badges.push('MOD');
+        else if (reply.distinguished === 'admin') badges.push('ADMIN');
+        const badgeStr = badges.length > 0 ? ` [${badges.join(', ')}]` : '';
+
+        content += `> \n`;
+        content += `> **u/${reply.author}**${badgeStr} · ${reply.score} points · ${date}\n`;
+        content += `> \n`;
+
+        const bodyLines = this.convertRedditMarkdown(reply.body || '').split('\n');
+        for (const line of bodyLines) {
+          content += `> ${line}\n`;
+        }
+      }
+      content += '\n';
+      groupedReplies = [];
+    };
+
+    for (const reply of childComments) {
+      const depth = reply.depth || 0;
+
+      if (depth !== currentDepth) {
+        flushGroup();
+        currentDepth = depth;
+      }
+
+      groupedReplies.push(reply);
+    }
+
+    flushGroup();
 
     return content;
   }

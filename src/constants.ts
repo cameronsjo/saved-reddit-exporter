@@ -219,6 +219,11 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   checkWaybackArchive: false,
   includeArchiveLinks: true,
   extractExternalLinks: true,
+  // Comment formatting defaults
+  postCommentFormat: 'nested',
+  savedCommentFormat: 'nested',
+  maxCommentDepth: 3,
+  collapseDeepThreads: true,
 };
 
 // Comment export defaults
@@ -231,6 +236,11 @@ export const COMMENT_MAX_DEPTH = 5; // Reddit API limit for reply depth per requ
 export const COMMENT_CONTEXT_MAX = 10; // Maximum context depth parameter
 export const COMMENT_CONTEXT_DEFAULT = 3; // Default number of parent comments to fetch
 export const COMMENT_REPLY_DEPTH_DEFAULT = 2; // Default reply depth to fetch
+
+// Comment formatting configuration
+export const COMMENT_FORMAT_MAX_VISUAL_DEPTH = 5; // Max visual nesting levels
+export const COMMENT_FORMAT_DEFAULT_VISUAL_DEPTH = 3; // Default max visual nesting
+export const COMMENT_FORMAT_MIN_VISUAL_DEPTH = 1; // Min visual nesting levels
 
 // Filter-related messages
 export const MSG_FILTER_PREVIEW = 'Preview mode: showing what would be imported...';
