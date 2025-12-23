@@ -811,32 +811,14 @@ export class RedditSavedSettingTab extends PluginSettingTab {
   }
 
   private displayFilterPresets(containerEl: HTMLElement, filters: FilterSettings): void {
-    const presetDiv = containerEl.createDiv();
-    presetDiv.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '10px',
-      borderRadius: '4px',
-      marginBottom: '15px',
-    });
+    const presetDiv = containerEl.createDiv({ cls: 'filter-presets-container' });
 
-    presetDiv.createEl('strong', { text: '🎯 Quick presets' });
-    presetDiv.createEl('br');
+    presetDiv.createEl('span', { text: 'Quick presets', cls: 'filter-presets-label' });
 
-    const buttonContainer = presetDiv.createDiv();
-    buttonContainer.setCssProps({
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '5px',
-      marginTop: '8px',
-    });
+    const buttonContainer = presetDiv.createDiv({ cls: 'filter-presets-buttons' });
 
     for (const [key, preset] of Object.entries(FILTER_PRESETS)) {
       const btn = buttonContainer.createEl('button', { text: preset.name });
-      btn.setCssProps({
-        padding: '4px 8px',
-        fontSize: '12px',
-        cursor: 'pointer',
-      });
       btn.title = preset.description;
       btn.addEventListener('click', async () => {
         Object.assign(this.settings.filterSettings, preset.settings);
