@@ -511,10 +511,23 @@
 }
 
 .filter-presets-container .filter-presets-label {
-	display: block;
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
 	font-weight: 600;
 	margin-bottom: 0.5em;
 	color: var(--text-normal);
+}
+
+.filter-presets-container .filter-presets-icon {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+
+.filter-presets-container .filter-presets-icon svg {
+	width: 16px;
+	height: 16px;
 }
 
 .filter-presets-buttons {

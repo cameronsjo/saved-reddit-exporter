@@ -1,4 +1,12 @@
-import { App, Notice, Plugin, PluginSettingTab, Setting, TextAreaComponent } from 'obsidian';
+import {
+  App,
+  Notice,
+  Plugin,
+  PluginSettingTab,
+  setIcon,
+  Setting,
+  TextAreaComponent,
+} from 'obsidian';
 import {
   RedditSavedSettings,
   FilterSettings,
@@ -813,7 +821,10 @@ export class RedditSavedSettingTab extends PluginSettingTab {
   private displayFilterPresets(containerEl: HTMLElement, filters: FilterSettings): void {
     const presetDiv = containerEl.createDiv({ cls: 'filter-presets-container' });
 
-    presetDiv.createEl('span', { text: 'Quick presets', cls: 'filter-presets-label' });
+    const labelEl = presetDiv.createEl('span', { cls: 'filter-presets-label' });
+    const iconEl = labelEl.createSpan({ cls: 'filter-presets-icon' });
+    setIcon(iconEl, 'sliders-horizontal');
+    labelEl.createSpan({ text: 'Quick presets' });
 
     const buttonContainer = presetDiv.createDiv({ cls: 'filter-presets-buttons' });
 
