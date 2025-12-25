@@ -501,3 +501,143 @@
 .sync-override-btn:hover {
 	filter: brightness(1.1);
 }
+
+/* ============================================================================
+   Quick Presets (Filter Settings)
+   ============================================================================ */
+
+.filter-presets-container {
+	margin-bottom: 1em;
+}
+
+.filter-presets-container .filter-presets-label {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	font-weight: 600;
+	margin-bottom: 0.5em;
+	color: var(--text-normal);
+}
+
+.filter-presets-container .filter-presets-icon {
+	display: flex;
+	align-items: center;
+	color: var(--text-muted);
+}
+
+.filter-presets-container .filter-presets-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.filter-presets-buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+}
+
+.filter-presets-buttons button {
+	padding: 0.4em 0.75em;
+	font-size: var(--font-ui-small);
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+	transition: all 0.15s ease;
+	white-space: nowrap;
+}
+
+.filter-presets-buttons button:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--background-modifier-border-hover);
+}
+
+.filter-presets-buttons button:active {
+	background: var(--background-modifier-active-hover);
+}
+
+/* ============================================================================
+   Mobile / Responsive Styles
+   ============================================================================ */
+
+@media (max-width: 600px) {
+	/* Sync Manager Modal - mobile adjustments */
+	.sync-manager-modal {
+		min-width: unset;
+		width: 100vw !important;
+		max-width: 100vw !important;
+		height: 100vh;
+		max-height: 100vh;
+	}
+
+	.sync-stats-bar {
+		padding: 0.75em 1em;
+		gap: 1em;
+	}
+
+	.sync-tab-bar {
+		padding: 0.5em 1em;
+		overflow-x: auto;
+	}
+
+	.sync-filter-bar {
+		padding: 0.5em 1em;
+		gap: 0.5em;
+	}
+
+	.sync-filter-bar input[type="text"] {
+		min-width: 100px;
+		flex: 1 1 100%;
+	}
+
+	.sync-filter-bar select {
+		min-width: 100px;
+		flex: 1;
+	}
+
+	/* Sync item row - stack layout on mobile */
+	.sync-item-row {
+		grid-template-columns: auto auto 1fr auto;
+		grid-template-rows: auto auto;
+		gap: 0.5em;
+		padding: 0.75em 1em;
+	}
+
+	.sync-item-score,
+	.sync-item-date {
+		display: none;
+	}
+
+	.sync-item-content {
+		grid-column: 3 / -1;
+	}
+
+	.sync-item-meta {
+		font-size: 0.8em;
+	}
+
+	.sync-action-bar {
+		padding: 0.75em 1em;
+		gap: 0.5em;
+	}
+
+	.sync-action-bar .keyboard-hints {
+		display: none;
+	}
+
+	.sync-action-bar button {
+		padding: 0.5em 0.75em;
+		font-size: 0.85em;
+	}
+
+	/* Filter presets - smaller buttons on mobile */
+	.filter-presets-buttons {
+		gap: 0.4em;
+	}
+
+	.filter-presets-buttons button {
+		padding: 0.35em 0.6em;
+		font-size: var(--font-ui-smaller);
+	}
+}
