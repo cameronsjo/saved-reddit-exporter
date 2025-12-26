@@ -14,6 +14,7 @@ import {
   FilterMode,
   DateRangePreset,
   UnsaveMode,
+  CredentialBackup,
 } from './types';
 import { FILTER_PRESETS } from './filters';
 import {
@@ -149,6 +150,9 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         ? 'Mobile Mode — Works on all platforms including iOS/Android'
         : 'Desktop Mode — Works on desktop only (macOS/Windows/Linux)',
     });
+
+    // Credential Backup/Restore Section
+    this.displayCredentialBackup(containerEl);
 
     if (this.settings.username) {
       new Setting(containerEl)
@@ -743,6 +747,88 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     // Filter Settings Section
     this.displayFilterSettings(containerEl);
+  }
+
+  private displayCredentialBackup(containerEl: HTMLElement): void {
+    // Only show if user has credentials configured
+    if (!this.settings.clientId && !this.settings.accessToken) {
+      return;
+    }
+
+    const backupSection = containerEl.createDiv();
+    backupSection.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '12px',
+      borderRadius: '6px',
+      marginBottom: '15px',
+    });
+
+    const headerEl = backupSection.createEl('div');
+    headerEl.setCssProps({
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      marginBottom: '8px',
+    });
+    setIcon(headerEl.createSpan(), 'shield');
+    headerEl.createEl('strong', { text: 'Credential Backup' });
+
+    const descEl = backupSection.createEl('div');
+    descEl.setCssProps({ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '10px' });
+    descEl.createSpan({
+      text: 'Backup your credentials before testing new OAuth configurations. Restore to revert if needed.',
+    });
+
+    const buttonContainer = backupSection.createEl('div');
+    buttonContainer.setCssProps({ display: 'flex', gap: '8px', flexWrap: 'wrap' });
+
+    // Export button
+    const exportBtn = buttonContainer.createEl('button', { text: 'Export to Clipboard' });
+    exportBtn.addEventListener('click', async () => {
+      const backup: CredentialBackup = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        clientId: this.settings.clientId,
+        clientSecret: this.settings.clientSecret,
+        accessToken: this.settings.accessToken,
+        refreshToken: this.settings.refreshToken,
+        tokenExpiry: this.settings.tokenExpiry,
+        username: this.settings.username,
+      };
+      await navigator.clipboard.writeText(JSON.stringify(backup, null, 2));
+      new Notice('Credentials copied to clipboard. Store them securely!');
+    });
+
+    // Import button
+    const importBtn = buttonContainer.createEl('button', { text: 'Import from Clipboard' });
+    importBtn.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        const backup = JSON.parse(text) as CredentialBackup;
+
+        // Validate structure
+        if (backup.version !== 1 || !backup.clientId || !backup.createdAt) {
+          new Notice('Invalid backup format. Please check the clipboard contents.');
+          return;
+        }
+
+        // Restore credentials
+        this.settings.clientId = backup.clientId;
+        this.settings.clientSecret = backup.clientSecret;
+        this.settings.accessToken = backup.accessToken;
+        this.settings.refreshToken = backup.refreshToken;
+        this.settings.tokenExpiry = backup.tokenExpiry;
+        this.settings.username = backup.username;
+
+        await this.saveSettings();
+        this.display(); // Refresh UI
+
+        const backupDate = new Date(backup.createdAt).toLocaleString();
+        new Notice(`Credentials restored from backup (${backupDate})`);
+      } catch {
+        new Notice('Failed to import. Ensure valid JSON is in clipboard.');
+      }
+    });
   }
 
   private displayLinkPreservationSettings(containerEl: HTMLElement): void {
