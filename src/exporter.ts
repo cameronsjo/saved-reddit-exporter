@@ -249,7 +249,7 @@ export class Exporter {
    */
   private getPluginVersion(): string {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian's internal plugin API is not typed
       const manifest = (this.app as any).plugins?.plugins?.['saved-reddit-exporter']?.manifest;
       return manifest?.version || 'unknown';
     } catch {

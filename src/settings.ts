@@ -335,8 +335,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     templateInfo.createEl('strong', { text: '📁 Template Variables:' });
     templateInfo.createEl('br');
-    const varText = templateInfo.createEl('code');
-    varText.style.fontSize = '0.9em';
+    const varText = templateInfo.createEl('code', { cls: 'settings-code-small' });
     varText.textContent =
       '{subreddit} {author} {type} {origin} {year} {month} {day} {title} {id} {flair} {postType} {score}';
     templateInfo.createEl('br');

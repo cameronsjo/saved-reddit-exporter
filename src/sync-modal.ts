@@ -1,4 +1,4 @@
-import { App, Modal, Notice } from 'obsidian';
+import { App, Modal, Notice, Setting } from 'obsidian';
 import { SyncManager } from './sync-manager';
 import { RedditApiClient } from './api-client';
 import { RedditItem, RedditSavedSettings, SyncItem, SyncStatus } from './types';
@@ -103,17 +103,17 @@ export class SyncManagerModal extends Modal {
 
     // Shortcut keys for actions
     this.scope.register([], 'i', () => {
-      if (!this.isProcessing) this.handleImport();
+      if (!this.isProcessing) void this.handleImport();
       return false;
     });
 
     this.scope.register([], 'u', () => {
-      if (!this.isProcessing) this.handleUnsave();
+      if (!this.isProcessing) void this.handleUnsave();
       return false;
     });
 
     this.scope.register([], 'r', () => {
-      if (!this.isProcessing) this.handleReprocess();
+      if (!this.isProcessing) void this.handleReprocess();
       return false;
     });
   }
@@ -134,27 +134,16 @@ export class SyncManagerModal extends Modal {
   private buildHeader() {
     const { contentEl } = this;
     const header = contentEl.createDiv({ cls: 'sync-modal-header' });
-    header.style.display = 'flex';
-    header.style.justifyContent = 'space-between';
-    header.style.alignItems = 'center';
-    header.style.marginBottom = '15px';
 
-    header.createEl('h2', { text: 'Sync Manager' });
+    new Setting(header).setName('Sync manager').setHeading();
 
     const refreshBtn = header.createEl('button', { text: '↻ Refresh' });
-    refreshBtn.onclick = () => this.handleRefresh();
+    refreshBtn.onclick = () => void this.handleRefresh();
   }
 
   private buildStatsBar() {
     const { contentEl } = this;
     this.statsContainer = contentEl.createDiv({ cls: 'sync-stats-bar' });
-    this.statsContainer.style.display = 'flex';
-    this.statsContainer.style.gap = '20px';
-    this.statsContainer.style.padding = '10px 15px';
-    this.statsContainer.style.backgroundColor = 'var(--background-secondary)';
-    this.statsContainer.style.borderRadius = '6px';
-    this.statsContainer.style.marginBottom = '15px';
-    this.statsContainer.style.fontSize = '13px';
 
     this.updateStats();
   }
@@ -172,23 +161,23 @@ export class SyncManagerModal extends Modal {
 
     this.statsContainer.empty();
 
-    const createStat = (label: string, count: number, color?: string) => {
-      const stat = this.statsContainer.createDiv();
-      stat.innerHTML = `<span style="color: var(--text-muted)">${label}:</span> <strong style="${color ? `color: ${color}` : ''}">${count}</strong>`;
+    const createStat = (label: string, count: number, statusClass?: string) => {
+      const stat = this.statsContainer.createDiv({ cls: 'stat-item' });
+      stat.createEl('span', { text: `${label}:`, cls: 'stat-label' });
+      const valueEl = stat.createEl('strong', { text: String(count), cls: 'stat-value' });
+      if (statusClass) {
+        valueEl.addClass(statusClass);
+      }
     };
 
-    createStat('Imported', stats.imported, 'var(--text-success)');
-    createStat('Pending', stats.pending, 'var(--text-accent)');
-    createStat(
-      'Filtered',
-      stats.filtered,
-      stats.overridden > 0 ? 'var(--text-warning)' : undefined
-    );
+    createStat('Imported', stats.imported, 'imported');
+    createStat('Pending', stats.pending, 'pending');
+    createStat('Filtered', stats.filtered, stats.overridden > 0 ? 'filtered' : undefined);
     if (stats.overridden > 0) {
-      createStat('Overridden', stats.overridden, 'var(--color-purple)');
+      createStat('Overridden', stats.overridden);
     }
     if (stats.orphaned > 0) {
-      createStat('Orphaned', stats.orphaned, 'var(--text-error)');
+      createStat('Orphaned', stats.orphaned, 'orphaned');
     }
     createStat('Selected', this.selectedItems.size);
   }
@@ -196,9 +185,6 @@ export class SyncManagerModal extends Modal {
   private buildTabBar() {
     const { contentEl } = this;
     const tabBar = contentEl.createDiv({ cls: 'sync-tab-bar' });
-    tabBar.style.display = 'flex';
-    tabBar.style.gap = '5px';
-    tabBar.style.marginBottom = '15px';
 
     const tabs: Array<{ id: SyncTab; label: string }> = [
       { id: 'all', label: 'All' },
@@ -209,10 +195,7 @@ export class SyncManagerModal extends Modal {
     ];
 
     for (const tab of tabs) {
-      const btn = tabBar.createEl('button', { text: tab.label });
-      btn.style.padding = '6px 12px';
-      btn.style.fontSize = '12px';
-      btn.style.borderRadius = '4px';
+      const btn = tabBar.createEl('button', { text: tab.label, cls: 'sync-tab-btn' });
 
       if (this.activeTab === tab.id) {
         btn.addClass('mod-cta');
@@ -239,22 +222,13 @@ export class SyncManagerModal extends Modal {
   private buildControls() {
     const { contentEl } = this;
     const controls = contentEl.createDiv({ cls: 'sync-controls' });
-    controls.style.display = 'flex';
-    controls.style.gap = '10px';
-    controls.style.marginBottom = '10px';
-    controls.style.flexWrap = 'wrap';
-    controls.style.alignItems = 'center';
 
     // Search input
     this.searchInput = controls.createEl('input', {
       type: 'text',
       placeholder: 'Search by title, subreddit, or author...',
+      cls: 'sync-search-input',
     });
-    this.searchInput.style.flex = '1';
-    this.searchInput.style.minWidth = '200px';
-    this.searchInput.style.padding = '8px';
-    this.searchInput.style.borderRadius = '4px';
-    this.searchInput.style.border = '1px solid var(--background-modifier-border)';
     this.searchInput.value = this.searchQuery;
     this.searchInput.oninput = () => {
       this.searchQuery = this.searchInput.value;
@@ -262,12 +236,11 @@ export class SyncManagerModal extends Modal {
     };
 
     // Type filter
-    const typeSelect = controls.createEl('select');
-    typeSelect.style.padding = '6px';
+    const typeSelect = controls.createEl('select', { cls: 'sync-select' });
     const typeOptions = [
-      { value: 'all', label: 'All Types' },
-      { value: 'posts', label: 'Posts Only' },
-      { value: 'comments', label: 'Comments Only' },
+      { value: 'all', label: 'All types' },
+      { value: 'posts', label: 'Posts only' },
+      { value: 'comments', label: 'Comments only' },
     ];
     for (const opt of typeOptions) {
       const option = typeSelect.createEl('option', { text: opt.label, value: opt.value });
@@ -279,8 +252,7 @@ export class SyncManagerModal extends Modal {
     };
 
     // Sort select
-    const sortSelect = controls.createEl('select');
-    sortSelect.style.padding = '6px';
+    const sortSelect = controls.createEl('select', { cls: 'sync-select' });
     const sortOptions = [
       { value: 'status', label: 'Sort: Status' },
       { value: 'subreddit', label: 'Sort: Subreddit' },
@@ -297,18 +269,18 @@ export class SyncManagerModal extends Modal {
     };
 
     // Bulk selection buttons
-    const bulkActions = controls.createDiv();
-    bulkActions.style.display = 'flex';
-    bulkActions.style.gap = '5px';
+    const bulkActions = controls.createDiv({ cls: 'sync-bulk-actions' });
 
-    const selectAllBtn = bulkActions.createEl('button', { text: 'Select All' });
-    selectAllBtn.style.padding = '4px 8px';
-    selectAllBtn.style.fontSize = '12px';
+    const selectAllBtn = bulkActions.createEl('button', {
+      text: 'Select all',
+      cls: 'sync-bulk-btn',
+    });
     selectAllBtn.onclick = () => this.selectAllDisplayed();
 
-    const deselectAllBtn = bulkActions.createEl('button', { text: 'Deselect' });
-    deselectAllBtn.style.padding = '4px 8px';
-    deselectAllBtn.style.fontSize = '12px';
+    const deselectAllBtn = bulkActions.createEl('button', {
+      text: 'Deselect',
+      cls: 'sync-bulk-btn',
+    });
     deselectAllBtn.onclick = () => this.deselectAllDisplayed();
   }
 
@@ -326,10 +298,7 @@ export class SyncManagerModal extends Modal {
     this.focusedIndex = -1;
 
     if (this.displayedItems.length === 0) {
-      const emptyMsg = this.listContainer.createDiv();
-      emptyMsg.style.padding = '30px';
-      emptyMsg.style.textAlign = 'center';
-      emptyMsg.style.color = 'var(--text-muted)';
+      const emptyMsg = this.listContainer.createDiv({ cls: 'sync-empty-msg' });
       emptyMsg.textContent = this.searchQuery
         ? 'No items match your search'
         : `No ${this.activeTab === 'all' ? '' : this.activeTab + ' '}items to display`;
@@ -414,32 +383,22 @@ export class SyncManagerModal extends Modal {
 
   private renderSyncItem(syncItem: SyncItem, index: number) {
     const itemEl = this.listContainer.createDiv({ cls: 'sync-item' });
-    itemEl.style.display = 'flex';
-    itemEl.style.alignItems = 'flex-start';
-    itemEl.style.padding = '10px 12px';
-    itemEl.style.borderBottom = '1px solid var(--background-modifier-border)';
-    itemEl.style.gap = '10px';
     itemEl.dataset.index = String(index);
 
     if (index === this.focusedIndex) {
-      itemEl.style.backgroundColor = 'var(--background-modifier-hover)';
-      itemEl.style.outline = '2px solid var(--interactive-accent)';
+      itemEl.addClass('focused');
     }
 
     // Status icon
-    const statusIcon = itemEl.createEl('span', { cls: 'status-icon' });
-    statusIcon.style.fontSize = '16px';
-    statusIcon.style.width = '20px';
-    statusIcon.style.flexShrink = '0';
+    const statusIcon = itemEl.createEl('span', { cls: 'sync-status-icon' });
     statusIcon.textContent = this.getStatusIcon(syncItem.status);
-    statusIcon.style.color = this.getStatusColor(syncItem.status);
+    statusIcon.setCssProps({ color: this.getStatusColor(syncItem.status) });
     statusIcon.title = this.getStatusTooltip(syncItem);
 
     // Checkbox (for items that can be selected)
     const canSelect = this.canSelectItem(syncItem);
     if (canSelect) {
-      const checkbox = itemEl.createEl('input', { type: 'checkbox' });
-      checkbox.style.flexShrink = '0';
+      const checkbox = itemEl.createEl('input', { type: 'checkbox', cls: 'sync-checkbox' });
       checkbox.checked = this.selectedItems.has(this.getItemId(syncItem));
       checkbox.onclick = e => {
         e.stopPropagation();
@@ -447,30 +406,18 @@ export class SyncManagerModal extends Modal {
       };
     } else {
       // Spacer for alignment
-      const spacer = itemEl.createDiv();
-      spacer.style.width = '17px';
-      spacer.style.flexShrink = '0';
+      itemEl.createDiv({ cls: 'sync-spacer' });
     }
 
     // Content
-    const content = itemEl.createDiv({ cls: 'item-content' });
-    content.style.flex = '1';
-    content.style.minWidth = '0';
-    content.style.overflow = 'hidden';
+    const content = itemEl.createDiv({ cls: 'sync-item-content' });
 
     // Title
-    const titleEl = content.createEl('div', { cls: 'item-title' });
-    titleEl.style.fontWeight = '500';
-    titleEl.style.overflow = 'hidden';
-    titleEl.style.textOverflow = 'ellipsis';
-    titleEl.style.whiteSpace = 'nowrap';
+    const titleEl = content.createEl('div', { cls: 'sync-item-title' });
     titleEl.textContent = this.syncManager.getDisplayTitle(syncItem);
 
     // Metadata row
-    const metaEl = content.createEl('div', { cls: 'item-meta' });
-    metaEl.style.fontSize = '12px';
-    metaEl.style.color = 'var(--text-muted)';
-    metaEl.style.marginTop = '2px';
+    const metaEl = content.createEl('div', { cls: 'sync-item-meta' });
 
     const subreddit = this.syncManager.getSubreddit(syncItem);
     const isComment = this.syncManager.isComment(syncItem);
@@ -481,29 +428,25 @@ export class SyncManagerModal extends Modal {
 
     // Filter reason (for filtered items)
     if (syncItem.filterResult && !syncItem.filterResult.passes) {
-      const reasonEl = content.createEl('div', { cls: 'filter-reason' });
-      reasonEl.style.fontSize = '11px';
-      reasonEl.style.color = 'var(--text-warning)';
-      reasonEl.style.marginTop = '4px';
-      reasonEl.style.display = 'flex';
-      reasonEl.style.alignItems = 'center';
-      reasonEl.style.gap = '8px';
+      const reasonEl = content.createEl('div', { cls: 'sync-filter-reason' });
 
       reasonEl.createEl('span', { text: `⚠ ${syncItem.filterResult.reason}` });
 
       if (!syncItem.userOverride) {
-        const overrideBtn = reasonEl.createEl('button', { text: 'Import Anyway' });
-        overrideBtn.style.fontSize = '10px';
-        overrideBtn.style.padding = '2px 6px';
+        const overrideBtn = reasonEl.createEl('button', {
+          text: 'Import anyway',
+          cls: 'sync-override-btn',
+        });
         overrideBtn.onclick = e => {
           e.stopPropagation();
           this.syncManager.toggleOverride(this.getItemId(syncItem));
           this.refreshList();
         };
       } else {
-        const undoBtn = reasonEl.createEl('button', { text: 'Undo Override' });
-        undoBtn.style.fontSize = '10px';
-        undoBtn.style.padding = '2px 6px';
+        const undoBtn = reasonEl.createEl('button', {
+          text: 'Undo override',
+          cls: 'sync-override-btn',
+        });
         undoBtn.onclick = e => {
           e.stopPropagation();
           this.syncManager.toggleOverride(this.getItemId(syncItem));
@@ -514,26 +457,19 @@ export class SyncManagerModal extends Modal {
 
     // Orphan info
     if (syncItem.status === 'orphaned') {
-      const orphanEl = content.createEl('div', { cls: 'orphan-info' });
-      orphanEl.style.fontSize = '11px';
-      orphanEl.style.color = 'var(--text-error)';
-      orphanEl.style.marginTop = '4px';
+      const orphanEl = content.createEl('div', { cls: 'sync-orphan-info' });
       orphanEl.textContent = '⊘ No longer on Reddit - file preserved in vault';
     }
 
     // Vault path (for imported items)
     if (syncItem.vaultPath) {
-      const pathEl = content.createEl('div', { cls: 'vault-path' });
-      pathEl.style.fontSize = '11px';
-      pathEl.style.color = 'var(--text-muted)';
-      pathEl.style.marginTop = '4px';
-      pathEl.style.opacity = '0.7';
+      const pathEl = content.createEl('div', { cls: 'sync-vault-path' });
       pathEl.textContent = `📁 ${syncItem.vaultPath}`;
     }
 
     // Click to select
     if (canSelect) {
-      itemEl.style.cursor = 'pointer';
+      itemEl.addClass('clickable');
       itemEl.onclick = () => {
         this.toggleSelection(this.getItemId(syncItem));
         this.focusedIndex = index;
@@ -545,10 +481,6 @@ export class SyncManagerModal extends Modal {
   private buildActionBar() {
     const { contentEl } = this;
     this.actionBar = contentEl.createDiv({ cls: 'sync-action-bar' });
-    this.actionBar.style.display = 'flex';
-    this.actionBar.style.justifyContent = 'flex-end';
-    this.actionBar.style.gap = '10px';
-    this.actionBar.style.marginBottom = '10px';
 
     this.updateActionBar();
   }
@@ -558,24 +490,24 @@ export class SyncManagerModal extends Modal {
 
     // Import button (for pending/filtered tabs)
     if (['all', 'pending', 'filtered'].includes(this.activeTab)) {
-      const importBtn = this.actionBar.createEl('button', { text: 'Import Selected' });
+      const importBtn = this.actionBar.createEl('button', { text: 'Import selected' });
       importBtn.addClass('mod-cta');
       importBtn.title = 'Keyboard: i';
-      importBtn.onclick = () => this.handleImport();
+      importBtn.onclick = () => void this.handleImport();
     }
 
     // Reprocess button (for imported tab)
     if (['all', 'imported'].includes(this.activeTab)) {
-      const reprocessBtn = this.actionBar.createEl('button', { text: 'Reprocess Selected' });
+      const reprocessBtn = this.actionBar.createEl('button', { text: 'Reprocess selected' });
       reprocessBtn.title = 'Keyboard: r';
-      reprocessBtn.onclick = () => this.handleReprocess();
+      reprocessBtn.onclick = () => void this.handleReprocess();
     }
 
     // Unsave button (for all tabs)
-    const unsaveBtn = this.actionBar.createEl('button', { text: 'Unsave Selected' });
+    const unsaveBtn = this.actionBar.createEl('button', { text: 'Unsave selected' });
     unsaveBtn.addClass('mod-warning');
     unsaveBtn.title = 'Keyboard: u';
-    unsaveBtn.onclick = () => this.handleUnsave();
+    unsaveBtn.onclick = () => void this.handleUnsave();
 
     // Close button
     const closeBtn = this.actionBar.createEl('button', { text: 'Close' });
@@ -585,11 +517,6 @@ export class SyncManagerModal extends Modal {
   private buildKeyboardHints() {
     const { contentEl } = this;
     const hints = contentEl.createDiv({ cls: 'sync-keyboard-hints' });
-    hints.style.fontSize = '11px';
-    hints.style.color = 'var(--text-muted)';
-    hints.style.display = 'flex';
-    hints.style.gap = '15px';
-    hints.style.flexWrap = 'wrap';
 
     hints.innerHTML = `
       <span><kbd>↑↓</kbd> Navigate</span>
@@ -885,14 +812,10 @@ class ConfirmationModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h3', { text: this.title });
+    new Setting(contentEl).setName(this.title).setHeading();
     contentEl.createEl('p', { text: this.message });
 
-    const buttonContainer = contentEl.createDiv();
-    buttonContainer.style.display = 'flex';
-    buttonContainer.style.justifyContent = 'flex-end';
-    buttonContainer.style.gap = '10px';
-    buttonContainer.style.marginTop = '20px';
+    const buttonContainer = contentEl.createDiv({ cls: 'confirmation-button-container' });
 
     const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
     cancelBtn.onclick = () => {

@@ -1,4 +1,4 @@
-import { App, Notice, Modal, TextComponent, requestUrl, RequestUrlParam } from 'obsidian';
+import { App, Notice, Modal, Setting, TextComponent, requestUrl, RequestUrlParam } from 'obsidian';
 import { RedditSavedSettings } from './types';
 import {
   OAUTH_SCOPES,
@@ -426,7 +426,7 @@ class AuthCodeModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h2', { text: 'Reddit authorization' });
+    new Setting(contentEl).setName('Reddit authorization').setHeading();
 
     const instructions = contentEl.createDiv();
     instructions.createEl('p', {
