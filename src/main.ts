@@ -53,6 +53,10 @@ export default class RedditSavedPlugin extends Plugin {
 
     // Initialize modules
     this.auth = new RedditAuth(this.app, this.settings, () => this.saveSettings());
+
+    // Register protocol handler for mobile OAuth (must be early in onload)
+    this.auth.registerProtocolHandler(this);
+
     this.apiClient = new RedditApiClient(this.settings, () => this.auth.ensureValidToken());
     this.mediaHandler = new MediaHandler(this.app, this.settings);
     this.contentFormatter = new ContentFormatter(this.settings, this.mediaHandler);

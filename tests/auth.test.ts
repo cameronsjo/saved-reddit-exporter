@@ -646,13 +646,17 @@ describe('RedditAuth', () => {
       expect(mockOpen).toHaveBeenCalledWith(expect.stringContaining('duration=permanent'));
     });
 
-    it('should require only client ID to fail', async () => {
+    it('should use installed app flow when only client ID is provided (no secret)', async () => {
       mockSettings.clientId = 'test-client';
       mockSettings.clientSecret = '';
 
       await auth.initiateOAuth();
 
-      expect(mockOpen).not.toHaveBeenCalled();
+      // With installed app flow, OAuth should proceed with obsidian:// redirect
+      expect(mockOpen).toHaveBeenCalled();
+      expect(mockOpen).toHaveBeenCalledWith(
+        expect.stringContaining('redirect_uri=obsidian%3A%2F%2Fsaved-reddit-exporter')
+      );
     });
 
     it('should require only client secret to fail', async () => {
@@ -662,6 +666,84 @@ describe('RedditAuth', () => {
       await auth.initiateOAuth();
 
       expect(mockOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getOAuthAppType', () => {
+    it('should return "installed" when clientSecret is empty', () => {
+      mockSettings.clientSecret = '';
+      expect(auth.getOAuthAppType()).toBe('installed');
+    });
+
+    it('should return "installed" when clientSecret is whitespace only', () => {
+      mockSettings.clientSecret = '   ';
+      expect(auth.getOAuthAppType()).toBe('installed');
+    });
+
+    it('should return "script" when clientSecret is provided', () => {
+      mockSettings.clientSecret = 'test-secret';
+      expect(auth.getOAuthAppType()).toBe('script');
+    });
+  });
+
+  describe('installed app flow', () => {
+    beforeEach(() => {
+      mockSettings.clientId = 'test-client';
+      mockSettings.clientSecret = ''; // Empty = installed app
+    });
+
+    it('should store pending OAuth state when initiating installed app flow', async () => {
+      await auth.initiateOAuth();
+
+      expect(mockSettings.pendingOAuthState).toBeDefined();
+      expect(mockSettings.pendingOAuthState?.state).toBeDefined();
+      expect(mockSettings.pendingOAuthState?.expiresAt).toBeGreaterThan(Date.now());
+      expect(mockSaveSettings).toHaveBeenCalled();
+    });
+
+    it('should use obsidian:// redirect URI for installed app flow', async () => {
+      await auth.initiateOAuth();
+
+      expect(mockOpen).toHaveBeenCalledWith(
+        expect.stringContaining('redirect_uri=obsidian%3A%2F%2Fsaved-reddit-exporter')
+      );
+    });
+
+    it('should show mobile auth notice for installed app flow', async () => {
+      await auth.initiateOAuth();
+
+      expect(mockNotice).toHaveBeenCalledWith('Opening Reddit for authorization...');
+    });
+  });
+
+  describe('script app flow', () => {
+    beforeEach(() => {
+      mockSettings.clientId = 'test-client';
+      mockSettings.clientSecret = 'test-secret'; // Non-empty = script app
+    });
+
+    it('should use localhost redirect URI for script app flow', async () => {
+      // Mock http module for script app flow
+      (window as { require?: (module: string) => unknown }).require = jest.fn((module: string) => {
+        if (module === 'http') {
+          return {
+            createServer: jest.fn(() => ({
+              on: jest.fn(),
+              listen: jest.fn((_port: number, _host: string, callback: () => void) => {
+                callback();
+              }),
+              close: jest.fn(),
+            })),
+          };
+        }
+        return null;
+      });
+
+      await auth.initiateOAuth();
+
+      expect(mockOpen).toHaveBeenCalledWith(
+        expect.stringContaining('redirect_uri=http%3A%2F%2Flocalhost%3A9638')
+      );
     });
   });
 

@@ -1,19 +1,37 @@
-import { App, Notice, Modal, Setting, TextComponent, requestUrl, RequestUrlParam } from 'obsidian';
-import { RedditSavedSettings } from './types';
+import {
+  App,
+  Notice,
+  Modal,
+  Setting,
+  TextComponent,
+  requestUrl,
+  RequestUrlParam,
+  Plugin,
+  ObsidianProtocolData,
+} from 'obsidian';
+import { RedditSavedSettings, OAuthAppType } from './types';
 import {
   OAUTH_SCOPES,
   OAUTH_DURATION,
   OAUTH_RESPONSE_TYPE,
   OAUTH_TIMEOUT_MS,
+  OAUTH_STATE_EXPIRY_MS,
   REDDIT_USER_AGENT,
   REDDIT_OAUTH_AUTHORIZE_URL,
   REDDIT_OAUTH_TOKEN_URL,
   REDDIT_OAUTH_BASE_URL,
+  OBSIDIAN_PROTOCOL_ACTION,
+  OBSIDIAN_REDIRECT_URI,
   MSG_AUTH_IN_PROGRESS,
   MSG_ENTER_CREDENTIALS,
   MSG_AUTH_SUCCESS,
   MSG_AUTH_CANCELLED,
   MSG_OAUTH_TIMEOUT,
+  MSG_MOBILE_AUTH_STARTED,
+  MSG_OAUTH_STATE_EXPIRED,
+  MSG_OAUTH_STATE_MISMATCH,
+  MSG_NO_PENDING_AUTH,
+  MSG_MISSING_AUTH_PARAMS,
   CONTENT_TYPE_HTML,
   CONTENT_TYPE_FORM_URLENCODED,
   HEADER_AUTHORIZATION,
@@ -36,13 +54,53 @@ export class RedditAuth {
     this.saveSettings = saveSettings;
   }
 
+  /**
+   * Register the Obsidian protocol handler for OAuth callbacks.
+   * This enables the installed app flow on all platforms including mobile.
+   * Must be called during plugin onload.
+   */
+  registerProtocolHandler(plugin: Plugin): void {
+    plugin.registerObsidianProtocolHandler(
+      OBSIDIAN_PROTOCOL_ACTION,
+      async (params: ObsidianProtocolData) => {
+        await this.handleProtocolCallback(params);
+      }
+    );
+  }
+
+  /**
+   * Determine which OAuth flow to use based on settings.
+   * If clientSecret is empty/undefined, use installed app flow (works on mobile).
+   * If clientSecret is provided, use script app flow (desktop only).
+   */
+  getOAuthAppType(): OAuthAppType {
+    return this.settings.clientSecret?.trim() ? 'script' : 'installed';
+  }
+
+  /**
+   * Get the appropriate redirect URI based on OAuth app type.
+   */
+  private getRedirectUri(): string {
+    return this.getOAuthAppType() === 'installed'
+      ? OBSIDIAN_REDIRECT_URI
+      : `http://localhost:${this.settings.oauthRedirectPort}`;
+  }
+
   async initiateOAuth(): Promise<void> {
     if (this.authorizationInProgress) {
       new Notice(MSG_AUTH_IN_PROGRESS);
       return;
     }
 
-    if (!this.settings.clientId || !this.settings.clientSecret) {
+    if (!this.settings.clientId) {
+      new Notice('Please enter your Client ID in settings first');
+      return;
+    }
+
+    const appType = this.getOAuthAppType();
+
+    // Script app requires client secret
+    if (appType === 'script' && !this.settings.clientSecret) {
       new Notice(MSG_ENTER_CREDENTIALS);
       return;
     }
@@ -50,7 +108,7 @@ export class RedditAuth {
     this.authorizationInProgress = true;
 
     const state = generateCsrfToken();
-    const redirectUri = `http://localhost:${this.settings.oauthRedirectPort}`;
+    const redirectUri = this.getRedirectUri();
 
     const authUrl =
       `${REDDIT_OAUTH_AUTHORIZE_URL}?` +
@@ -61,7 +119,50 @@ export class RedditAuth {
       `&duration=${OAUTH_DURATION}` +
       `&scope=${encodeURIComponent(OAUTH_SCOPES)}`;
 
-    // Store state for verification
+    if (appType === 'installed') {
+      // Installed app flow: use protocol handler (works on mobile)
+      await this.initiateInstalledAppFlow(state, authUrl);
+    } else {
+      // Script app flow: use HTTP server (desktop only)
+      await this.initiateScriptAppFlow(state, authUrl);
+    }
+  }
+
+  /**
+   * Installed app OAuth flow using Obsidian protocol handler.
+   * Works on all platforms including mobile.
+   */
+  private async initiateInstalledAppFlow(state: string, authUrl: string): Promise<void> {
+    // Store pending state for validation when callback arrives
+    this.settings.pendingOAuthState = {
+      state,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + OAUTH_STATE_EXPIRY_MS,
+    };
+    await this.saveSettings();
+
+    new Notice(MSG_MOBILE_AUTH_STARTED);
+    window.open(authUrl);
+
+    // Set up timeout to clean up pending state
+    setTimeout(async () => {
+      if (this.settings.pendingOAuthState?.state === state) {
+        this.settings.pendingOAuthState = undefined;
+        await this.saveSettings();
+        if (this.authorizationInProgress) {
+          new Notice(MSG_OAUTH_STATE_EXPIRED);
+          this.authorizationInProgress = false;
+        }
+      }
+    }, OAUTH_STATE_EXPIRY_MS);
+  }
+
+  /**
+   * Script app OAuth flow using local HTTP server.
+   * Desktop only - requires Node.js http module.
+   */
+  private async initiateScriptAppFlow(state: string, authUrl: string): Promise<void> {
+    // Store state for verification (legacy approach)
     const currentData = { ...this.settings };
     (currentData as RedditSavedSettings & { oauthState: string }).oauthState = state;
     await this.saveSettings();
@@ -76,9 +177,63 @@ export class RedditAuth {
       window.open(authUrl);
     } catch (error) {
       console.error('Failed to start OAuth server:', error);
-      new Notice(`Failed to start OAuth server: ${error.message}. Falling back to manual entry...`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to start OAuth server: ${errorMessage}. Falling back to manual entry...`);
       // Fallback to manual code entry
       this.showAuthCodeInput(state);
+    }
+  }
+
+  /**
+   * Handle OAuth callback from Obsidian protocol handler.
+   * Called when user is redirected back via obsidian://saved-reddit-exporter?code=...&state=...
+   */
+  private async handleProtocolCallback(params: ObsidianProtocolData): Promise<void> {
+    const { code, state, error } = params;
+
+    if (error) {
+      new Notice(`Authorization failed: ${error}`);
+      this.authorizationInProgress = false;
+      return;
+    }
+
+    if (!code || !state) {
+      new Notice(MSG_MISSING_AUTH_PARAMS);
+      this.authorizationInProgress = false;
+      return;
+    }
+
+    const pending = this.settings.pendingOAuthState;
+
+    if (!pending) {
+      new Notice(MSG_NO_PENDING_AUTH);
+      return;
+    }
+
+    if (Date.now() > pending.expiresAt) {
+      new Notice(MSG_OAUTH_STATE_EXPIRED);
+      this.settings.pendingOAuthState = undefined;
+      await this.saveSettings();
+      this.authorizationInProgress = false;
+      return;
+    }
+
+    if (state !== pending.state) {
+      new Notice(MSG_OAUTH_STATE_MISMATCH);
+      this.authorizationInProgress = false;
+      return;
+    }
+
+    try {
+      await this.exchangeCodeForToken(code, OBSIDIAN_REDIRECT_URI);
+      new Notice(MSG_AUTH_SUCCESS);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      new Notice(`Failed to authenticate: ${errorMessage}`);
+    } finally {
+      this.settings.pendingOAuthState = undefined;
+      await this.saveSettings();
+      this.authorizationInProgress = false;
     }
   }
 
@@ -326,8 +481,13 @@ export class RedditAuth {
     await this.exchangeCodeForToken(code);
   }
 
-  private async exchangeCodeForToken(code: string): Promise<void> {
-    const auth = btoa(`${this.settings.clientId}:${this.settings.clientSecret}`);
+  private async exchangeCodeForToken(code: string, redirectUri?: string): Promise<void> {
+    const appType = this.getOAuthAppType();
+    const actualRedirectUri = redirectUri ?? this.getRedirectUri();
+
+    // For installed apps, client_secret is empty string
+    const secret = appType === 'installed' ? '' : this.settings.clientSecret;
+    const auth = btoa(`${this.settings.clientId}:${secret}`);
 
     const params: RequestUrlParam = {
       url: REDDIT_OAUTH_TOKEN_URL,
@@ -336,7 +496,7 @@ export class RedditAuth {
         [HEADER_AUTHORIZATION]: `Basic ${auth}`,
         [HEADER_CONTENT_TYPE]: CONTENT_TYPE_FORM_URLENCODED,
       },
-      body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(`http://localhost:${this.settings.oauthRedirectPort}`)}`,
+      body: `grant_type=authorization_code&code=${code}&redirect_uri=${encodeURIComponent(actualRedirectUri)}`,
     };
 
     const response = await requestUrl(params);
@@ -358,7 +518,10 @@ export class RedditAuth {
       throw new Error('No refresh token available. Please authenticate first.');
     }
 
-    const auth = btoa(`${this.settings.clientId}:${this.settings.clientSecret}`);
+    const appType = this.getOAuthAppType();
+    // For installed apps, client_secret is empty string
+    const secret = appType === 'installed' ? '' : this.settings.clientSecret;
+    const auth = btoa(`${this.settings.clientId}:${secret}`);
 
     const params: RequestUrlParam = {
       url: REDDIT_OAUTH_TOKEN_URL,

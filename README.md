@@ -150,26 +150,37 @@ When enabled, filter your imports by:
 
 ## Mobile Support
 
-**Partial support** - requires initial setup on desktop.
+**Full support** with the right setup.
 
 | Feature               | Desktop | Mobile |
 | --------------------- | ------- | ------ |
-| Reddit authentication | ✅      | ❌     |
+| Reddit authentication | ✅      | ✅\*   |
 | Import posts          | ✅      | ✅     |
 | Sync/resume imports   | ✅      | ✅     |
 | Media downloads       | ✅      | ✅     |
 | All other features    | ✅      | ✅     |
 
-**Why?** Reddit OAuth requires a local HTTP server to receive the authentication callback. Mobile Obsidian can't run local servers, so the initial Reddit login must happen on desktop.
+\*Mobile authentication requires using Reddit's "installed app" type (see setup below).
 
-**Setup workflow:**
+### Mobile-First Setup (Recommended)
 
-1. Install the plugin on desktop and mobile
-2. Complete Reddit authentication on **desktop**
-3. Sync your vault (iCloud, Obsidian Sync, etc.)
-4. Use the plugin normally on mobile - your auth tokens sync with the vault
+For authentication that works everywhere including iOS and Android:
 
-Once authenticated, everything works on mobile. You can import posts, download media, resume interrupted imports - the full experience.
+1. Create a Reddit app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)
+2. Select **"installed app"** as the app type
+3. Set redirect URI to: `obsidian://saved-reddit-exporter`
+4. In plugin settings, enter only the **Client ID** (leave Client Secret empty)
+5. Authenticate directly on any device!
+
+### Desktop-Only Setup (Legacy)
+
+If you only use desktop, you can use the traditional "script" app:
+
+1. Create a Reddit app with type **"script"**
+2. Set redirect URI to: `http://localhost:9638`
+3. Enter both Client ID and Client Secret in settings
+
+The plugin auto-detects which mode to use based on whether you've entered a Client Secret.
 
 ---
 

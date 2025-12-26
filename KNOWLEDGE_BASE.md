@@ -25,21 +25,47 @@ This Obsidian plugin connects to Reddit's API to fetch, import, and optionally u
 #### 3. Authentication System
 
 - OAuth 2.0 flow implementation for Reddit API
+- **Dual OAuth flows**: Installed app (mobile) and Script app (desktop legacy)
 - Token management with automatic refresh
 - Secure credential storage within Obsidian's data system
-- HTTP callback for OAuth (`http://localhost:9638` with manual code input)
+- Protocol handler callback (`obsidian://saved-reddit-exporter`) for cross-platform support
+- HTTP callback fallback (`http://localhost:9638`) for legacy desktop setups
 
 ## Reddit API Integration
 
-### Authentication Flow
+### Authentication Flows
 
-1. User enters Client ID and Client Secret in settings
-2. Plugin initiates OAuth flow opening Reddit authorization page
-3. User approves permissions (identity, history, read)
-4. Reddit redirects to `http://localhost:9638` with authorization code
-5. User manually copies authorization code from URL and inputs it
-6. Plugin exchanges code for access/refresh tokens
-7. Tokens stored securely in plugin settings
+The plugin supports two OAuth flows, auto-detected based on whether a Client Secret is provided:
+
+#### Installed App Flow (Recommended)
+
+For cross-platform support including mobile devices:
+
+1. User creates "installed app" at reddit.com/prefs/apps
+2. User enters only Client ID in settings (no secret)
+3. Plugin detects empty secret → uses installed app flow
+4. Plugin opens Reddit authorization with `obsidian://saved-reddit-exporter` redirect
+5. User approves permissions (identity, history, read, save)
+6. Reddit redirects to `obsidian://saved-reddit-exporter?code=...&state=...`
+7. Obsidian receives via `registerObsidianProtocolHandler`
+8. Plugin validates CSRF state, exchanges code for tokens (empty secret in Basic auth)
+9. Tokens stored securely in plugin settings
+
+#### Script App Flow (Legacy Desktop)
+
+For existing desktop-only users:
+
+1. User creates "script" app at reddit.com/prefs/apps
+2. User enters Client ID AND Client Secret in settings
+3. Plugin detects non-empty secret → uses script app flow
+4. Plugin starts local HTTP server on configured port (default: 9638)
+5. Plugin opens Reddit authorization with `http://localhost:9638` redirect
+6. User approves permissions
+7. Reddit redirects to localhost, HTTP server receives callback
+8. Plugin validates CSRF state, exchanges code for tokens (secret in Basic auth)
+9. Tokens stored, server closed
+
+**Fallback**: If HTTP server fails (port in use, etc.), user can manually copy the auth code from the browser URL.
 
 ### API Endpoints Used
 
@@ -137,12 +163,17 @@ This Obsidian plugin connects to Reddit's API to fetch, import, and optionally u
 
 ## Configuration Options
 
-### Required Settings
+### Authentication Settings
 
-- `clientId` - Reddit app client ID
-- `clientSecret` - Reddit app client secret
+- `clientId` - Reddit app client ID (required)
+- `clientSecret` - Reddit app client secret (optional - leave empty for installed app/mobile flow)
 
-### Optional Settings
+**Note**: The presence or absence of `clientSecret` determines which OAuth flow is used:
+
+- Empty → Installed app flow (mobile-compatible)
+- Provided → Script app flow (desktop-only)
+
+### Import Settings
 
 - `saveLocation` - Target folder for imports (default: "Reddit Saved")
 - `fetchLimit` - Maximum posts to fetch (default: 1000)
@@ -155,7 +186,7 @@ This Obsidian plugin connects to Reddit's API to fetch, import, and optionally u
 - `downloadImages` - Auto-download linked images (default: false)
 - `downloadGifs` - Auto-download GIF animations (default: false)
 - `downloadVideos` - Auto-download video files (default: false)
-- `oauthRedirectPort` - OAuth callback port (default: 9638)
+- `oauthRedirectPort` - OAuth callback port for script apps (default: 9638)
 - `showAdvancedSettings` - Toggle advanced options visibility (default: false)
 
 ### Internal State
@@ -207,36 +238,78 @@ saved-reddit-posts/
 
 1. Visit https://www.reddit.com/prefs/apps
 2. Click "Create App" or "Create Another App"
-3. Fill in details:
-   - Name: Any name for your app
-   - App type: Select "script"
-   - Redirect URI: `http://localhost:9638` (or your configured port)
-4. Save the app
-5. Note the Client ID (under app name) and Secret
+3. Choose your app type based on your needs:
+
+#### Option A: Installed App (Recommended for Mobile)
+
+| Setting      | Value                                |
+| ------------ | ------------------------------------ |
+| Name         | Any name (e.g., "Obsidian Exporter") |
+| App type     | **installed app**                    |
+| Description  | Optional                             |
+| About URL    | Optional                             |
+| Redirect URI | `obsidian://saved-reddit-exporter`   |
+
+- Note only the **Client ID** (under app name)
+- No secret is provided for installed apps
+- Works on iOS, Android, and desktop
+
+#### Option B: Script App (Legacy Desktop)
+
+| Setting      | Value                                |
+| ------------ | ------------------------------------ |
+| Name         | Any name (e.g., "Obsidian Exporter") |
+| App type     | **script**                           |
+| Description  | Optional                             |
+| About URL    | Optional                             |
+| Redirect URI | `http://localhost:9638`              |
+
+- Note both the **Client ID** and **Secret**
+- Only works on desktop (requires local HTTP server)
 
 ### Required Permissions
+
+Both app types request the same OAuth scopes:
 
 - `identity` - Access user account info
 - `history` - Access saved posts/comments
 - `read` - Read Reddit content
+- `save` - Unsave items after import (optional feature)
+
+### Migration: Script App → Installed App
+
+Existing users with a script app who want mobile support:
+
+1. Create a **new** Reddit app with type "installed app"
+2. Set redirect URI to `obsidian://saved-reddit-exporter`
+3. In plugin settings, clear the Client Secret field
+4. Enter the new Client ID
+5. Re-authenticate
+
+Your existing tokens will be replaced. No data loss - just re-auth required.
 
 ## Error Handling
 
 ### Common Issues
 
 1. **Invalid Client Credentials**
-   - Verify Client ID and Secret in settings
-   - Ensure app type is "script" on Reddit
+   - Verify Client ID in settings
+   - For script apps: verify Client Secret is correct
+   - For installed apps: ensure Client Secret is empty
 
-2. **Token Expiration**
+2. **Wrong Redirect URI**
+   - Installed app: must be exactly `obsidian://saved-reddit-exporter`
+   - Script app: must match your configured port (default `http://localhost:9638`)
+
+3. **Token Expiration**
    - Plugin auto-refreshes tokens
    - Manual re-authentication available in settings
 
-3. **Rate Limiting**
+4. **Rate Limiting**
    - Implements pagination for large saved lists
    - Respects Reddit API limits
 
-4. **File Creation Errors**
+5. **File Creation Errors**
    - Validates folder existence
    - Sanitizes filenames for OS compatibility
 
@@ -246,31 +319,54 @@ saved-reddit-posts/
 
 All features work on desktop platforms (Windows, macOS, Linux).
 
-### Mobile (Partial Support)
+### Mobile (Full Support with Installed App)
 
-**Limitation:** Reddit OAuth authentication does NOT work on mobile.
+Full mobile support is available using Reddit's "installed app" type with Obsidian's protocol handler.
 
-**Reason:** The OAuth flow requires starting a local HTTP server (`http://localhost:9638`) to receive Reddit's callback. Mobile Obsidian runs in a sandboxed environment without Node.js networking capabilities.
+**Setup for Mobile Users:**
 
-**What works on mobile:**
+1. Create a Reddit app at reddit.com/prefs/apps
+2. Select **"installed app"** type
+3. Set redirect URI to: `obsidian://saved-reddit-exporter`
+4. Copy the Client ID (leave Client Secret empty in plugin settings)
+5. Authenticate directly on mobile!
 
-- Importing posts (after initial authentication on desktop)
-- Resuming interrupted imports
-- Downloading media
-- All other plugin features
+**Technical Details:**
 
-**Setup workflow for mobile users:**
+The plugin supports two OAuth flows:
 
-1. Authenticate on desktop first
-2. Sync vault to mobile (iCloud, Obsidian Sync, etc.)
-3. Auth tokens are stored in plugin data and sync with the vault
-4. Mobile can then use the plugin normally
+| Flow          | Reddit App Type | Client Secret | Redirect URI                       | Platforms              |
+| ------------- | --------------- | ------------- | ---------------------------------- | ---------------------- |
+| Installed App | installed       | Empty         | `obsidian://saved-reddit-exporter` | All (desktop + mobile) |
+| Script App    | script          | Required      | `http://localhost:9638`            | Desktop only           |
 
-**Technical details:**
+**Implementation:**
 
-- The `startOAuthServer()` method in `auth.ts` uses `window.require('http')` which is only available in Electron (desktop)
-- Fallback to manual code entry exists but still requires the server for the initial redirect
-- Token refresh works on mobile since it's just an API call, not a server
+- Uses Obsidian's `registerObsidianProtocolHandler` API for the installed app flow
+- Protocol handler registered in `main.ts` during plugin load
+- `RedditAuth.getOAuthAppType()` auto-detects flow based on clientSecret presence
+- Empty clientSecret = installed app flow, non-empty = script app flow
+
+**Code paths in `auth.ts`:**
+
+- `initiateInstalledAppFlow()` - Stores pending state, opens browser with `obsidian://` redirect
+- `handleProtocolCallback()` - Receives callback via protocol handler, validates state, exchanges code
+- `initiateScriptAppFlow()` - Legacy HTTP server approach for script apps
+
+**State Management:**
+
+- Installed app flow uses `pendingOAuthState` in settings to track in-flight auth
+- 10-minute expiry prevents stale auth attempts
+- State validated with CSRF token before token exchange
+
+**Legacy Desktop-Only Setup:**
+
+Desktop users can still use "script" app type:
+
+1. Create Reddit app with type "script"
+2. Set redirect URI to `http://localhost:9638`
+3. Enter both Client ID and Client Secret
+4. The `startOAuthServer()` method uses `window.require('http')` (Electron-only)
 
 ## Security Considerations
 
