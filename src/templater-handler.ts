@@ -24,7 +24,7 @@ export class TemplaterHandler {
    * Check if the Templater plugin is available and properly configured
    */
   isTemplaterAvailable(): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian's internal plugin API is not typed
     const templaterPlugin = (this.app as any).plugins?.plugins?.['templater-obsidian'];
     if (!templaterPlugin) {
       return false;
@@ -267,7 +267,7 @@ export class TemplaterHandler {
    */
   async runTemplaterOnFile(file: TFile): Promise<void> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian's internal plugin API is not typed
       const templaterPlugin = (this.app as any).plugins?.plugins?.['templater-obsidian'];
       if (!templaterPlugin?.templater?.overwrite_file_commands) {
         return;

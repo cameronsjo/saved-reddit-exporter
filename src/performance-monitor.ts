@@ -508,7 +508,7 @@ export class PerformanceMonitor {
     };
 
     // Try to get memory info (Chrome/Electron specific)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Chrome/Electron memory API is not in standard types
     const perf = performance as any;
     if (perf.memory) {
       sample.usedHeapSize = perf.memory.usedJSHeapSize;

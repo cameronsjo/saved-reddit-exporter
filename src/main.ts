@@ -1,4 +1,4 @@
-import { Notice, Plugin, Modal, App } from 'obsidian';
+import { Notice, Plugin, Modal, App, Setting } from 'obsidian';
 import {
   RedditSavedSettings,
   ImportResult,
@@ -53,6 +53,10 @@ export default class RedditSavedPlugin extends Plugin {
 
     // Initialize modules
     this.auth = new RedditAuth(this.app, this.settings, () => this.saveSettings());
+
+    // Register protocol handler for mobile OAuth (must be early in onload)
+    this.auth.registerProtocolHandler(this);
+
     this.apiClient = new RedditApiClient(this.settings, () => this.auth.ensureValidToken());
     this.mediaHandler = new MediaHandler(this.app, this.settings);
     this.contentFormatter = new ContentFormatter(this.settings, this.mediaHandler);
@@ -328,7 +332,7 @@ export default class RedditSavedPlugin extends Plugin {
 
       // Show performance stats if enabled
       if (this.settings.showPerformanceStats) {
-        console.log(this.performanceMonitor.formatForDisplay());
+        console.debug(this.performanceMonitor.formatForDisplay());
         new Notice(
           'Performance stats logged to console. Use "Show import status" command for details.'
         );
@@ -465,8 +469,8 @@ export default class RedditSavedPlugin extends Plugin {
     statusMessage += `Online: ${queueStatus.isOnline}\n`;
 
     // Log full performance report
-    console.log(statusMessage);
-    console.log('\n' + this.performanceMonitor.formatForDisplay());
+    console.debug(statusMessage);
+    console.debug('\n' + this.performanceMonitor.formatForDisplay());
 
     new Notice(`Import status logged to console. Phase: ${progress?.phase || 'idle'}`);
   }
@@ -1029,14 +1033,14 @@ class ExportStatsModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h2', { text: '📊 Export Statistics' });
+    new Setting(contentEl).setName('📊 Export statistics').setHeading();
 
     contentEl.createEl('p', { text: `Total items in vault: ${this.stats.totalItems}` });
 
-    contentEl.createEl('h3', { text: 'Top Subreddits' });
+    new Setting(contentEl).setName('Top subreddits').setHeading();
     contentEl.createEl('pre', { text: this.stats.subredditBreakdown || 'No items found' });
 
-    contentEl.createEl('h3', { text: 'By Type' });
+    new Setting(contentEl).setName('By type').setHeading();
     contentEl.createEl('pre', { text: this.stats.typeBreakdown || 'No items found' });
 
     const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
@@ -1080,7 +1084,7 @@ class PreviewModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    contentEl.createEl('h2', { text: 'Import Preview' });
+    new Setting(contentEl).setName('Import preview').setHeading();
 
     // Summary
     const summaryDiv = contentEl.createDiv();
@@ -1091,7 +1095,7 @@ class PreviewModal extends Modal {
       marginBottom: '15px',
     });
 
-    summaryDiv.createEl('h3', { text: 'Summary' });
+    new Setting(summaryDiv).setName('Summary').setHeading();
     summaryDiv.createEl('p', {
       text: `✅ Would import: ${this.preview.wouldImport.length} items`,
     });
@@ -1113,7 +1117,7 @@ class PreviewModal extends Modal {
         marginBottom: '15px',
       });
 
-      breakdownDiv.createEl('h3', { text: 'Filter Breakdown' });
+      new Setting(breakdownDiv).setName('Filter breakdown').setHeading();
       const breakdown = this.preview.breakdown;
       const breakdownList = breakdownDiv.createEl('ul');
 
@@ -1139,7 +1143,7 @@ class PreviewModal extends Modal {
     // Sample of items to import
     if (this.preview.wouldImport.length > 0) {
       const importDiv = contentEl.createDiv();
-      importDiv.createEl('h3', { text: 'Sample items to import' });
+      new Setting(importDiv).setName('Sample items to import').setHeading();
 
       const sampleItems = this.preview.wouldImport.slice(0, 5);
       const importList = importDiv.createEl('ul');
@@ -1165,7 +1169,7 @@ class PreviewModal extends Modal {
     // Sample of filtered items
     if (this.filterEnabled && this.preview.wouldFilter.length > 0) {
       const filterDiv = contentEl.createDiv();
-      filterDiv.createEl('h3', { text: 'Sample filtered items' });
+      new Setting(filterDiv).setName('Sample filtered items').setHeading();
 
       const sampleFiltered = this.preview.wouldFilter.slice(0, 5);
       const filterList = filterDiv.createEl('ul');

@@ -16,7 +16,12 @@ import {
   UnsaveMode,
 } from './types';
 import { FILTER_PRESETS } from './filters';
-import { DEFAULT_FILTER_SETTINGS, COMMENT_CONTEXT_MAX, COMMENT_MAX_DEPTH } from './constants';
+import {
+  DEFAULT_FILTER_SETTINGS,
+  COMMENT_CONTEXT_MAX,
+  COMMENT_MAX_DEPTH,
+  OBSIDIAN_REDIRECT_URI,
+} from './constants';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 
@@ -48,7 +53,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     const setupInstructions = containerEl.createDiv();
 
     const firstPara = setupInstructions.createEl('p');
-    firstPara.createSpan({ text: 'To use this plugin, you need to create a Reddit app at ' });
+    firstPara.createSpan({ text: 'To use this plugin, create a Reddit app at ' });
     firstPara
       .createEl('a', {
         text: 'Reddit Apps',
@@ -56,10 +61,45 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       })
       .setAttr('target', '_blank');
 
-    const secondPara = setupInstructions.createEl('p');
-    secondPara.createEl('strong', { text: 'Important' });
-    secondPara.createSpan({ text: ': Set the redirect URI to ' });
-    secondPara.createEl('code', { text: `http://localhost:${this.settings.oauthRedirectPort}` });
+    // Platform options box
+    const platformBox = setupInstructions.createDiv();
+    platformBox.setCssProps({
+      backgroundColor: 'var(--background-secondary)',
+      padding: '12px',
+      borderRadius: '6px',
+      marginTop: '10px',
+      marginBottom: '15px',
+    });
+
+    platformBox.createEl('strong', { text: 'Choose your app type:' });
+
+    // Mobile/All platforms option
+    const mobileOption = platformBox.createDiv();
+    mobileOption.setCssProps({ marginTop: '10px' });
+    const mobileLabel = mobileOption.createEl('div');
+    mobileLabel.setCssProps({ display: 'flex', alignItems: 'center', gap: '6px' });
+    setIcon(mobileLabel.createSpan(), 'smartphone');
+    mobileLabel.createEl('strong', { text: 'Mobile / All Platforms' });
+    const mobileDesc = mobileOption.createEl('div');
+    mobileDesc.setCssProps({ marginLeft: '22px', fontSize: '0.9em', color: 'var(--text-muted)' });
+    mobileDesc.createSpan({
+      text: 'Create an "installed app" • Leave Client Secret empty • Redirect URI: ',
+    });
+    mobileDesc.createEl('code', { text: OBSIDIAN_REDIRECT_URI });
+
+    // Desktop option
+    const desktopOption = platformBox.createDiv();
+    desktopOption.setCssProps({ marginTop: '10px' });
+    const desktopLabel = desktopOption.createEl('div');
+    desktopLabel.setCssProps({ display: 'flex', alignItems: 'center', gap: '6px' });
+    setIcon(desktopLabel.createSpan(), 'monitor');
+    desktopLabel.createEl('strong', { text: 'Desktop Only' });
+    const desktopDesc = desktopOption.createEl('div');
+    desktopDesc.setCssProps({ marginLeft: '22px', fontSize: '0.9em', color: 'var(--text-muted)' });
+    desktopDesc.createSpan({
+      text: 'Create a "script" app • Enter Client Secret • Redirect URI: ',
+    });
+    desktopDesc.createEl('code', { text: `http://localhost:${this.settings.oauthRedirectPort}` });
 
     new Setting(containerEl)
       .setName('Client ID')
@@ -76,16 +116,39 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Client secret')
-      .setDesc('Your Reddit app client secret')
+      .setDesc('Your Reddit app client secret (leave empty for mobile/installed app)')
       .addText(text =>
         text
-          .setPlaceholder('Enter client secret')
+          .setPlaceholder('Leave empty for mobile')
           .setValue(this.settings.clientSecret)
           .onChange(async value => {
             this.settings.clientSecret = value;
             await this.saveSettings();
+            this.display(); // Refresh to update mode indicator
           })
       );
+
+    // Show current OAuth mode indicator
+    const isInstalledApp = !this.settings.clientSecret?.trim();
+    const modeIndicator = containerEl.createDiv();
+    modeIndicator.setCssProps({
+      backgroundColor: isInstalledApp
+        ? 'var(--background-modifier-success)'
+        : 'var(--background-secondary)',
+      padding: '8px 12px',
+      borderRadius: '4px',
+      marginBottom: '15px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      fontSize: '0.9em',
+    });
+    setIcon(modeIndicator.createSpan(), isInstalledApp ? 'smartphone' : 'monitor');
+    modeIndicator.createSpan({
+      text: isInstalledApp
+        ? 'Mobile Mode — Works on all platforms including iOS/Android'
+        : 'Desktop Mode — Works on desktop only (macOS/Windows/Linux)',
+    });
 
     if (this.settings.username) {
       new Setting(containerEl)
@@ -335,8 +398,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     templateInfo.createEl('strong', { text: '📁 Template Variables:' });
     templateInfo.createEl('br');
-    const varText = templateInfo.createEl('code');
-    varText.style.fontSize = '0.9em';
+    const varText = templateInfo.createEl('code', { cls: 'settings-code-small' });
     varText.textContent =
       '{subreddit} {author} {type} {origin} {year} {month} {day} {title} {id} {flair} {postType} {score}';
     templateInfo.createEl('br');

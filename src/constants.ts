@@ -7,6 +7,11 @@ export const OAUTH_SCOPES = 'identity history read save';
 export const OAUTH_DURATION = 'permanent';
 export const OAUTH_RESPONSE_TYPE = 'code';
 
+// Protocol Handler (for mobile/installed app OAuth)
+export const OBSIDIAN_PROTOCOL_ACTION = 'saved-reddit-exporter';
+export const OBSIDIAN_REDIRECT_URI = `obsidian://${OBSIDIAN_PROTOCOL_ACTION}`;
+export const OAUTH_STATE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes for protocol handler flow
+
 // Reddit API Configuration
 export const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
 export const REDDIT_PAGE_SIZE = 100; // Max items per request
@@ -73,6 +78,11 @@ export const MSG_FETCHING_POSTS = 'Fetching saved posts...';
 export const MSG_AUTH_SUCCESS = 'Successfully authenticated with Reddit!';
 export const MSG_AUTH_CANCELLED = 'Reddit authentication cancelled';
 export const MSG_OAUTH_TIMEOUT = 'OAuth server timed out. Please try authenticating again.';
+export const MSG_MOBILE_AUTH_STARTED = 'Opening Reddit for authorization...';
+export const MSG_OAUTH_STATE_EXPIRED = 'Authorization expired. Please try again.';
+export const MSG_OAUTH_STATE_MISMATCH = 'Invalid authorization state. Please try again.';
+export const MSG_NO_PENDING_AUTH = 'No pending authorization. Please try again.';
+export const MSG_MISSING_AUTH_PARAMS = 'Missing authorization code or state parameter.';
 export const MSG_RESCAN_VAULT = 'Rescanning vault for Reddit posts...';
 export const MSG_UNSAVING_ITEMS = 'Unsaving items...';
 export const MSG_FINISHED_UNSAVING = 'Finished unsaving items';

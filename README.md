@@ -148,6 +148,42 @@ When enabled, filter your imports by:
 
 ---
 
+## Mobile Support
+
+**Full support** with the right setup.
+
+| Feature               | Desktop | Mobile |
+| --------------------- | ------- | ------ |
+| Reddit authentication | ✅      | ✅\*   |
+| Import posts          | ✅      | ✅     |
+| Sync/resume imports   | ✅      | ✅     |
+| Media downloads       | ✅      | ✅     |
+| All other features    | ✅      | ✅     |
+
+\*Mobile authentication requires using Reddit's "installed app" type (see setup below).
+
+### Mobile-First Setup (Recommended)
+
+For authentication that works everywhere including iOS and Android:
+
+1. Create a Reddit app at [reddit.com/prefs/apps](https://www.reddit.com/prefs/apps)
+2. Select **"installed app"** as the app type
+3. Set redirect URI to: `obsidian://saved-reddit-exporter`
+4. In plugin settings, enter only the **Client ID** (leave Client Secret empty)
+5. Authenticate directly on any device!
+
+### Desktop-Only Setup (Legacy)
+
+If you only use desktop, you can use the traditional "script" app:
+
+1. Create a Reddit app with type **"script"**
+2. Set redirect URI to: `http://localhost:9638`
+3. Enter both Client ID and Client Secret in settings
+
+The plugin auto-detects which mode to use based on whether you've entered a Client Secret.
+
+---
+
 ## Commands
 
 | Command                         | What it does                                  |

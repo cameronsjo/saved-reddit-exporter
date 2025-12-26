@@ -440,6 +440,877 @@ describe('MediaHandler', () => {
     });
   });
 
+  describe('analyzeMedia extended coverage', () => {
+    it('should identify Reddit videos', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        url: 'https://v.redd.it/abc123',
+        domain: 'v.redd.it',
+      };
+
+      const result = handler.analyzeMedia(data);
+
+      expect(result.type).toBe('video');
+      expect(result.mediaType).toBe('reddit-video');
+      expect(result.isMedia).toBe(true);
+      expect(result.canEmbed).toBe(false);
+    });
+
+    it('should identify Gfycat GIFs', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        url: 'https://gfycat.com/coolcat',
+        domain: 'gfycat.com',
+      };
+
+      const result = handler.analyzeMedia(data);
+
+      expect(result.type).toBe('gif');
+      expect(result.mediaType).toBe('gif-platform');
+      expect(result.isMedia).toBe(true);
+      expect(result.canEmbed).toBe(false);
+    });
+
+    it('should identify Redgifs', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        url: 'https://redgifs.com/watch/example',
+        domain: 'redgifs.com',
+      };
+
+      const result = handler.analyzeMedia(data);
+
+      expect(result.type).toBe('gif');
+      expect(result.mediaType).toBe('gif-platform');
+    });
+
+    it('should identify youtu.be short URLs', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        url: 'https://youtu.be/dQw4w9WgXcQ',
+        domain: 'youtu.be',
+      };
+
+      const result = handler.analyzeMedia(data);
+
+      expect(result.type).toBe('video');
+      expect(result.mediaType).toBe('youtube');
+      expect(result.isMedia).toBe(true);
+    });
+
+    it('should identify direct video file URLs', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        url: 'https://example.com/video.webm',
+        domain: 'example.com',
+      };
+
+      const result = handler.analyzeMedia(data);
+
+      expect(result.type).toBe('video');
+      expect(result.mediaType).toBe('video');
+      expect(result.isMedia).toBe(true);
+      expect(result.canEmbed).toBe(true);
+    });
+
+    it('should return link type for non-media URLs', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        url: 'https://news.ycombinator.com/item?id=12345',
+        domain: 'news.ycombinator.com',
+      };
+
+      const result = handler.analyzeMedia(data);
+
+      expect(result.type).toBe('link');
+      expect(result.mediaType).toBeNull();
+      expect(result.isMedia).toBe(false);
+      expect(result.canEmbed).toBe(false);
+    });
+  });
+
+  describe('shouldDownloadMedia extended coverage', () => {
+    it('should respect GIF platform download settings', () => {
+      const mediaInfo = {
+        type: 'gif' as const,
+        mediaType: 'gif-platform' as const,
+        isMedia: true,
+        domain: 'gfycat.com',
+        canEmbed: false,
+      };
+
+      mockSettings.downloadGifs = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://gfycat.com/coolcat')).toBe(true);
+
+      mockSettings.downloadGifs = false;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://gfycat.com/coolcat')).toBe(false);
+    });
+
+    it('should respect video download settings', () => {
+      const mediaInfo = {
+        type: 'video' as const,
+        mediaType: 'video' as const,
+        isMedia: true,
+        domain: 'example.com',
+        canEmbed: true,
+      };
+
+      mockSettings.downloadVideos = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://example.com/video.mp4')).toBe(true);
+
+      mockSettings.downloadVideos = false;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://example.com/video.mp4')).toBe(false);
+    });
+
+    it('should handle Imgur image downloads', () => {
+      const mediaInfo = {
+        type: 'image' as const,
+        mediaType: 'imgur' as const,
+        isMedia: true,
+        domain: 'i.imgur.com',
+        canEmbed: true,
+      };
+
+      mockSettings.downloadImages = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://i.imgur.com/abc.jpg')).toBe(true);
+
+      mockSettings.downloadImages = false;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://i.imgur.com/abc.jpg')).toBe(false);
+    });
+
+    it('should download generic image files by extension', () => {
+      const mediaInfo = {
+        type: 'link' as const,
+        mediaType: null,
+        isMedia: false,
+        domain: 'unknown.com',
+        canEmbed: false,
+      };
+
+      mockSettings.downloadImages = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://unknown.com/image.png')).toBe(true);
+
+      mockSettings.downloadImages = false;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://unknown.com/image.png')).toBe(false);
+    });
+
+    it('should download generic GIF files by extension', () => {
+      const mediaInfo = {
+        type: 'link' as const,
+        mediaType: null,
+        isMedia: false,
+        domain: 'unknown.com',
+        canEmbed: false,
+      };
+
+      mockSettings.downloadGifs = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://unknown.com/animation.gif')).toBe(
+        true
+      );
+
+      mockSettings.downloadGifs = false;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://unknown.com/animation.gif')).toBe(
+        false
+      );
+    });
+
+    it('should download generic video files by extension', () => {
+      const mediaInfo = {
+        type: 'link' as const,
+        mediaType: null,
+        isMedia: false,
+        domain: 'unknown.com',
+        canEmbed: false,
+      };
+
+      mockSettings.downloadVideos = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://unknown.com/video.mp4')).toBe(true);
+
+      mockSettings.downloadVideos = false;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://unknown.com/video.mp4')).toBe(false);
+    });
+
+    it('should return false for non-media URLs without file extensions', () => {
+      const mediaInfo = {
+        type: 'link' as const,
+        mediaType: null,
+        isMedia: false,
+        domain: 'example.com',
+        canEmbed: false,
+      };
+
+      mockSettings.downloadImages = true;
+      mockSettings.downloadGifs = true;
+      mockSettings.downloadVideos = true;
+      expect(handler.shouldDownloadMedia(mediaInfo, 'https://example.com/article')).toBe(false);
+    });
+  });
+
+  describe('generateMediaFilename extended coverage', () => {
+    it('should default to gif extension for gif-platform media type', () => {
+      const data: RedditItemData = {
+        id: 'abc123',
+        name: 't3_abc123',
+        title: 'Funny GIF',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const mediaInfo = {
+        type: 'gif' as const,
+        mediaType: 'gif-platform' as const,
+        isMedia: true,
+        domain: 'gfycat.com',
+        canEmbed: false,
+      };
+
+      const result = handler.generateMediaFilename(data, 'https://gfycat.com/coolcat', mediaInfo);
+
+      expect(result).toContain('.gif');
+    });
+
+    it('should default to mp4 extension for video media type', () => {
+      const data: RedditItemData = {
+        id: 'abc123',
+        name: 't3_abc123',
+        title: 'Cool Video',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const mediaInfo = {
+        type: 'video' as const,
+        mediaType: 'video' as const,
+        isMedia: true,
+        domain: 'example.com',
+        canEmbed: true,
+      };
+
+      const result = handler.generateMediaFilename(data, 'https://example.com/watch', mediaInfo);
+
+      expect(result).toContain('.mp4');
+    });
+
+    it('should use fallback title when title is missing', () => {
+      const data: RedditItemData = {
+        id: 'abc123',
+        name: 't3_abc123',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const mediaInfo = {
+        type: 'image' as const,
+        mediaType: 'image' as const,
+        isMedia: true,
+        domain: 'example.com',
+        canEmbed: true,
+      };
+
+      const result = handler.generateMediaFilename(
+        data,
+        'https://example.com/image.jpg',
+        mediaInfo
+      );
+
+      expect(result).toContain('reddit-media');
+      expect(result).toContain('abc123');
+    });
+
+    it('should use fallback ID when ID is missing', () => {
+      const data: RedditItemData = {
+        id: '',
+        name: 't3_test',
+        title: 'Test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const mediaInfo = {
+        type: 'image' as const,
+        mediaType: 'image' as const,
+        isMedia: true,
+        domain: 'example.com',
+        canEmbed: true,
+      };
+
+      const result = handler.generateMediaFilename(
+        data,
+        'https://example.com/image.jpg',
+        mediaInfo
+      );
+
+      expect(result).toContain('unknown');
+    });
+
+    it('should handle path traversal attempts safely', () => {
+      const data: RedditItemData = {
+        id: 'abc123',
+        name: 't3_abc123',
+        title: '../../../etc/passwd',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const mediaInfo = {
+        type: 'image' as const,
+        mediaType: 'image' as const,
+        isMedia: true,
+        domain: 'example.com',
+        canEmbed: true,
+      };
+
+      const result = handler.generateMediaFilename(
+        data,
+        'https://example.com/image.jpg',
+        mediaInfo
+      );
+
+      // Should return safe fallback filename
+      expect(result).toContain('media-abc123');
+      expect(result).not.toContain('..');
+    });
+
+    it('should default to unknown extension for unknown media types', () => {
+      const data: RedditItemData = {
+        id: 'abc123',
+        name: 't3_abc123',
+        title: 'Unknown Media',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const mediaInfo = {
+        type: 'link' as const,
+        mediaType: null,
+        isMedia: false,
+        domain: 'example.com',
+        canEmbed: false,
+      };
+
+      const result = handler.generateMediaFilename(data, 'https://example.com/unknown', mediaInfo);
+
+      expect(result).toContain('.unknown');
+    });
+  });
+
+  describe('isGalleryPost', () => {
+    it('should return true for valid gallery posts', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [{ media_id: 'img1', id: 1 }],
+        },
+        media_metadata: {
+          img1: {
+            status: 'valid',
+            e: 'Image',
+            m: 'image/jpeg',
+            s: { u: 'https://i.redd.it/img1.jpg', x: 800, y: 600 },
+          },
+        },
+      };
+
+      expect(handler.isGalleryPost(data)).toBe(true);
+    });
+
+    it('should return false when is_gallery is false', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: false,
+      };
+
+      expect(handler.isGalleryPost(data)).toBe(false);
+    });
+
+    it('should return false when gallery_data is missing', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        media_metadata: {},
+      };
+
+      expect(handler.isGalleryPost(data)).toBe(false);
+    });
+
+    it('should return false when media_metadata is missing', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [{ media_id: 'img1', id: 1 }],
+        },
+      };
+
+      expect(handler.isGalleryPost(data)).toBe(false);
+    });
+  });
+
+  describe('isPollPost', () => {
+    it('should return true for valid poll posts', () => {
+      const data: RedditItemData = {
+        id: 'poll1',
+        name: 't3_poll1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        poll_data: {
+          options: [
+            { id: '1', text: 'Option 1' },
+            { id: '2', text: 'Option 2' },
+          ],
+          total_vote_count: 100,
+          voting_end_timestamp: 1641000000,
+        },
+      };
+
+      expect(handler.isPollPost(data)).toBe(true);
+    });
+
+    it('should return false when poll_data is missing', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      expect(handler.isPollPost(data)).toBe(false);
+    });
+
+    it('should return false when poll has no options', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        poll_data: {
+          options: [],
+          total_vote_count: 0,
+          voting_end_timestamp: 1641000000,
+        },
+      };
+
+      expect(handler.isPollPost(data)).toBe(false);
+    });
+  });
+
+  describe('extractGalleryImages', () => {
+    it('should extract images from valid gallery', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [
+            { media_id: 'img1', id: 1, caption: 'First image' },
+            { media_id: 'img2', id: 2, caption: 'Second image', outbound_url: 'https://link.com' },
+          ],
+        },
+        media_metadata: {
+          img1: {
+            status: 'valid',
+            e: 'Image',
+            m: 'image/jpeg',
+            s: { u: 'https://preview.redd.it/img1.jpg?width=800&amp;height=600', x: 800, y: 600 },
+          },
+          img2: {
+            status: 'valid',
+            e: 'Image',
+            m: 'image/png',
+            s: { u: 'https://preview.redd.it/img2.png?width=1024&amp;height=768', x: 1024, y: 768 },
+          },
+        },
+      };
+
+      const images = handler.extractGalleryImages(data);
+
+      expect(images).toHaveLength(2);
+      expect(images[0].mediaId).toBe('img1');
+      expect(images[0].caption).toBe('First image');
+      expect(images[0].url).toContain('img1.jpg');
+      expect(images[0].url).not.toContain('&amp;'); // Should be decoded
+      expect(images[0].width).toBe(800);
+      expect(images[0].height).toBe(600);
+      expect(images[0].index).toBe(0);
+      expect(images[0].isAnimated).toBe(false);
+
+      expect(images[1].mediaId).toBe('img2');
+      expect(images[1].caption).toBe('Second image');
+      expect(images[1].outboundUrl).toBe('https://link.com');
+      expect(images[1].index).toBe(1);
+    });
+
+    it('should return empty array for non-gallery posts', () => {
+      const data: RedditItemData = {
+        id: 'test',
+        name: 't3_test',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: false,
+      };
+
+      const images = handler.extractGalleryImages(data);
+      expect(images).toHaveLength(0);
+    });
+
+    it('should skip items with invalid status', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [
+            { media_id: 'img1', id: 1 },
+            { media_id: 'img2', id: 2 },
+          ],
+        },
+        media_metadata: {
+          img1: {
+            status: 'valid',
+            e: 'Image',
+            m: 'image/jpeg',
+            s: { u: 'https://preview.redd.it/img1.jpg', x: 800, y: 600 },
+          },
+          img2: {
+            status: 'failed',
+            e: 'Image',
+            m: 'image/png',
+          },
+        },
+      };
+
+      const images = handler.extractGalleryImages(data);
+      expect(images).toHaveLength(1);
+      expect(images[0].mediaId).toBe('img1');
+    });
+
+    it('should handle animated images (GIFs) with MP4 fallback', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [{ media_id: 'anim1', id: 1 }],
+        },
+        media_metadata: {
+          anim1: {
+            status: 'valid',
+            e: 'AnimatedImage',
+            m: 'image/gif',
+            s: {
+              gif: 'https://preview.redd.it/anim1.gif?format=gif&amp;v=1',
+              mp4: 'https://preview.redd.it/anim1.mp4?format=mp4&amp;v=1',
+              x: 400,
+              y: 300,
+            },
+          },
+        },
+      };
+
+      const images = handler.extractGalleryImages(data);
+
+      expect(images).toHaveLength(1);
+      expect(images[0].isAnimated).toBe(true);
+      expect(images[0].url).toContain('anim1.gif');
+      expect(images[0].url).not.toContain('&amp;');
+      expect(images[0].mp4Url).toContain('anim1.mp4');
+      expect(images[0].mp4Url).not.toContain('&amp;');
+    });
+
+    it('should handle animated images without GIF URL', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [{ media_id: 'anim1', id: 1 }],
+        },
+        media_metadata: {
+          anim1: {
+            status: 'valid',
+            e: 'AnimatedImage',
+            m: 'video/mp4',
+            s: {
+              mp4: 'https://preview.redd.it/anim1.mp4',
+              x: 400,
+              y: 300,
+            },
+          },
+        },
+      };
+
+      const images = handler.extractGalleryImages(data);
+
+      expect(images).toHaveLength(1);
+      expect(images[0].isAnimated).toBe(true);
+      expect(images[0].url).toContain('anim1.mp4');
+      expect(images[0].mp4Url).toContain('anim1.mp4');
+    });
+
+    it('should skip items with missing URL', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+        is_gallery: true,
+        gallery_data: {
+          items: [{ media_id: 'img1', id: 1 }],
+        },
+        media_metadata: {
+          img1: {
+            status: 'valid',
+            e: 'Image',
+            m: 'image/jpeg',
+            s: { x: 800, y: 600 }, // Missing 'u' URL
+          },
+        },
+      };
+
+      const images = handler.extractGalleryImages(data);
+      expect(images).toHaveLength(0);
+    });
+  });
+
+  describe('generateGalleryImageFilename', () => {
+    it('should generate padded index filenames', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        title: 'My Gallery Post',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const image = {
+        mediaId: 'img1',
+        url: 'https://preview.redd.it/img1.jpg?width=800',
+        index: 0,
+        isAnimated: false,
+      };
+
+      const filename = handler.generateGalleryImageFilename(data, image, 10);
+
+      expect(filename).toContain('My Gallery Post');
+      expect(filename).toContain('gallery1');
+      expect(filename).toContain('-01.');
+      expect(filename).toContain('.jpg');
+    });
+
+    it('should use mp4 extension for animated images with mp4Url', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        title: 'Animated Gallery',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const image = {
+        mediaId: 'anim1',
+        url: 'https://preview.redd.it/anim1.gif',
+        mp4Url: 'https://preview.redd.it/anim1.mp4',
+        index: 0,
+        isAnimated: true,
+      };
+
+      const filename = handler.generateGalleryImageFilename(data, image, 5);
+
+      expect(filename).toContain('.mp4');
+    });
+
+    it('should use gif extension for animated images without mp4Url', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        title: 'GIF Gallery',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const image = {
+        mediaId: 'anim1',
+        url: 'https://preview.redd.it/anim1.gif',
+        index: 0,
+        isAnimated: true,
+      };
+
+      const filename = handler.generateGalleryImageFilename(data, image, 5);
+
+      expect(filename).toContain('.gif');
+    });
+
+    it('should use fallback title for missing title', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const image = {
+        mediaId: 'img1',
+        url: 'https://preview.redd.it/img1.jpg',
+        index: 0,
+        isAnimated: false,
+      };
+
+      const filename = handler.generateGalleryImageFilename(data, image, 5);
+
+      expect(filename).toContain('reddit-gallery');
+    });
+
+    it('should extract extension from URL', () => {
+      const data: RedditItemData = {
+        id: 'gallery1',
+        name: 't3_gallery1',
+        title: 'PNG Gallery',
+        author: 'user',
+        subreddit: 'test',
+        permalink: '/test',
+        created_utc: 1640995200,
+        score: 0,
+      };
+
+      const image = {
+        mediaId: 'img1',
+        url: 'https://preview.redd.it/img1.PNG?width=800',
+        index: 0,
+        isAnimated: false,
+      };
+
+      const filename = handler.generateGalleryImageFilename(data, image, 5);
+
+      expect(filename).toContain('.png');
+    });
+  });
+
   describe('media type detection edge cases', () => {
     it('should detect direct image links', () => {
       const postData = {

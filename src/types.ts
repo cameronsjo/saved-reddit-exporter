@@ -1,5 +1,18 @@
 export type UnsaveMode = 'off' | 'prompt' | 'auto';
 
+/** OAuth app type determines authentication flow */
+export type OAuthAppType = 'script' | 'installed';
+
+/** Pending OAuth state for installed app flow (protocol handler) */
+export interface PendingOAuthState {
+  /** CSRF state token */
+  state: string;
+  /** When the auth was initiated */
+  timestamp: number;
+  /** When the auth expires */
+  expiresAt: number;
+}
+
 export interface RedditSavedSettings {
   clientId: string;
   clientSecret: string;
@@ -13,7 +26,8 @@ export interface RedditSavedSettings {
   fetchLimit: number;
   importedIds: string[]; // Track imported Reddit IDs
   skipExisting: boolean; // Skip already imported posts
-  oauthRedirectPort: number; // OAuth callback port
+  oauthRedirectPort: number; // OAuth callback port (script app flow)
+  pendingOAuthState?: PendingOAuthState; // Pending OAuth state for installed app flow
   showAdvancedSettings: boolean; // Toggle advanced settings visibility
   downloadImages: boolean; // Download linked images
   downloadGifs: boolean; // Download GIF files
