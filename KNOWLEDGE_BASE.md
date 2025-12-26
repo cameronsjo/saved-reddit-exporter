@@ -240,6 +240,38 @@ saved-reddit-posts/
    - Validates folder existence
    - Sanitizes filenames for OS compatibility
 
+## Platform Support
+
+### Desktop (Full Support)
+
+All features work on desktop platforms (Windows, macOS, Linux).
+
+### Mobile (Partial Support)
+
+**Limitation:** Reddit OAuth authentication does NOT work on mobile.
+
+**Reason:** The OAuth flow requires starting a local HTTP server (`http://localhost:9638`) to receive Reddit's callback. Mobile Obsidian runs in a sandboxed environment without Node.js networking capabilities.
+
+**What works on mobile:**
+
+- Importing posts (after initial authentication on desktop)
+- Resuming interrupted imports
+- Downloading media
+- All other plugin features
+
+**Setup workflow for mobile users:**
+
+1. Authenticate on desktop first
+2. Sync vault to mobile (iCloud, Obsidian Sync, etc.)
+3. Auth tokens are stored in plugin data and sync with the vault
+4. Mobile can then use the plugin normally
+
+**Technical details:**
+
+- The `startOAuthServer()` method in `auth.ts` uses `window.require('http')` which is only available in Electron (desktop)
+- Fallback to manual code entry exists but still requires the server for the initial redirect
+- Token refresh works on mobile since it's just an API call, not a server
+
 ## Security Considerations
 
 - Credentials stored locally in Obsidian vault

@@ -148,6 +148,31 @@ When enabled, filter your imports by:
 
 ---
 
+## Mobile Support
+
+**Partial support** - requires initial setup on desktop.
+
+| Feature               | Desktop | Mobile |
+| --------------------- | ------- | ------ |
+| Reddit authentication | ✅      | ❌     |
+| Import posts          | ✅      | ✅     |
+| Sync/resume imports   | ✅      | ✅     |
+| Media downloads       | ✅      | ✅     |
+| All other features    | ✅      | ✅     |
+
+**Why?** Reddit OAuth requires a local HTTP server to receive the authentication callback. Mobile Obsidian can't run local servers, so the initial Reddit login must happen on desktop.
+
+**Setup workflow:**
+
+1. Install the plugin on desktop and mobile
+2. Complete Reddit authentication on **desktop**
+3. Sync your vault (iCloud, Obsidian Sync, etc.)
+4. Use the plugin normally on mobile - your auth tokens sync with the vault
+
+Once authenticated, everything works on mobile. You can import posts, download media, resume interrupted imports - the full experience.
+
+---
+
 ## Commands
 
 | Command                         | What it does                                  |
