@@ -37,7 +37,8 @@ describe('RedditSavedSettingTab', () => {
       organizeBySubreddit: false,
       exportPostComments: false,
       commentUpvoteThreshold: 0,
-    };
+      activeSettingsTab: 'setup',
+    } as RedditSavedSettings;
 
     mockSaveSettings = jest.fn().mockResolvedValue(undefined);
     mockInitiateOAuth = jest.fn().mockResolvedValue(undefined);
@@ -254,6 +255,31 @@ describe('RedditSavedSettingTab', () => {
 
       mockSettings.commentUpvoteThreshold = 50;
       expect(mockSettings.commentUpvoteThreshold).toBe(50);
+    });
+  });
+
+  describe('settings tab UI state', () => {
+    it('should default to setup tab', () => {
+      expect(mockSettings.activeSettingsTab).toBe('setup');
+    });
+
+    it('should persist tab selection', () => {
+      mockSettings.activeSettingsTab = 'import';
+      expect(mockSettings.activeSettingsTab).toBe('import');
+
+      mockSettings.activeSettingsTab = 'filters';
+      expect(mockSettings.activeSettingsTab).toBe('filters');
+
+      mockSettings.activeSettingsTab = 'advanced';
+      expect(mockSettings.activeSettingsTab).toBe('advanced');
+    });
+
+    it('should allow switching back to setup tab', () => {
+      mockSettings.activeSettingsTab = 'advanced';
+      expect(mockSettings.activeSettingsTab).toBe('advanced');
+
+      mockSettings.activeSettingsTab = 'setup';
+      expect(mockSettings.activeSettingsTab).toBe('setup');
     });
   });
 });

@@ -918,6 +918,290 @@
 }
 
 /* ============================================================================
+   Settings Tab UI
+   ============================================================================ */
+
+/* Tab bar at top of settings */
+.settings-tab-bar {
+	display: flex;
+	gap: 0.25em;
+	padding: 0.5em 0;
+	margin-bottom: 1em;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.settings-tab-btn {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	padding: 0.6em 1em;
+	border-radius: 6px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	cursor: pointer;
+	font-size: 0.9em;
+	transition: all 0.15s ease;
+}
+
+.settings-tab-btn:hover {
+	background: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.settings-tab-btn.active {
+	background: var(--interactive-accent);
+	color: var(--text-on-accent);
+}
+
+.settings-tab-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.settings-tab-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.settings-tab-content {
+	padding: 0;
+}
+
+/* Section groupings within tabs */
+.settings-section {
+	margin-bottom: 1.5em;
+}
+
+.settings-section-header {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	font-weight: 600;
+	font-size: 1.1em;
+	margin-bottom: 0.75em;
+	padding-bottom: 0.5em;
+	border-bottom: 1px solid var(--background-modifier-border);
+	color: var(--text-normal);
+}
+
+.settings-section-header svg {
+	width: 18px;
+	height: 18px;
+	color: var(--text-muted);
+}
+
+/* Collapsible sections using <details> */
+.settings-collapsible {
+	margin-bottom: 1em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	overflow: hidden;
+}
+
+.settings-collapsible summary {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	padding: 0.75em 1em;
+	background: var(--background-secondary);
+	cursor: pointer;
+	font-weight: 500;
+	user-select: none;
+	list-style: none;
+}
+
+.settings-collapsible summary::-webkit-details-marker {
+	display: none;
+}
+
+.settings-collapsible summary::before {
+	content: '▶';
+	font-size: 0.7em;
+	transition: transform 0.2s ease;
+	color: var(--text-muted);
+}
+
+.settings-collapsible[open] summary::before {
+	transform: rotate(90deg);
+}
+
+.settings-collapsible summary:hover {
+	background: var(--background-modifier-hover);
+}
+
+.settings-collapsible summary svg {
+	width: 16px;
+	height: 16px;
+	color: var(--text-muted);
+}
+
+.settings-collapsible-content {
+	padding: 1em;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+/* Info boxes for guidance text */
+.settings-info-box {
+	padding: 1em;
+	margin-bottom: 1em;
+	background: var(--background-secondary);
+	border-radius: 6px;
+	border-left: 3px solid var(--interactive-accent);
+	font-size: 0.9em;
+	line-height: 1.5;
+}
+
+.settings-info-box.compact {
+	padding: 0.75em 1em;
+	font-size: 0.85em;
+}
+
+.settings-info-box p {
+	margin: 0 0 0.5em 0;
+}
+
+.settings-info-box p:last-child {
+	margin-bottom: 0;
+}
+
+.settings-info-box strong {
+	color: var(--text-normal);
+}
+
+.settings-info-box code {
+	background: var(--background-primary);
+	padding: 0.1em 0.4em;
+	border-radius: 3px;
+	font-size: 0.9em;
+}
+
+/* Platform selection grid (mobile vs desktop OAuth) */
+.settings-platform-grid {
+	display: grid;
+	grid-template-columns: repeat(2, 1fr);
+	gap: 1em;
+	margin-bottom: 1em;
+}
+
+.settings-platform-option {
+	padding: 1em;
+	border: 2px solid var(--background-modifier-border);
+	border-radius: 8px;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	text-align: center;
+}
+
+.settings-platform-option:hover {
+	border-color: var(--interactive-accent);
+	background: var(--background-secondary);
+}
+
+.settings-platform-option.selected {
+	border-color: var(--interactive-accent);
+	background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+}
+
+.settings-platform-option h4 {
+	margin: 0.5em 0 0.25em 0;
+	font-size: 1em;
+}
+
+.settings-platform-option p {
+	margin: 0;
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+/* OAuth mode indicator */
+.settings-mode-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4em;
+	padding: 0.3em 0.75em;
+	border-radius: 20px;
+	font-size: 0.85em;
+	font-weight: 500;
+}
+
+.settings-mode-indicator.mode-mobile {
+	background: color-mix(in srgb, var(--text-success) 20%, transparent);
+	color: var(--text-success);
+}
+
+.settings-mode-indicator.mode-desktop {
+	background: color-mix(in srgb, var(--text-accent) 20%, transparent);
+	color: var(--text-accent);
+}
+
+/* Preset/quick action button rows */
+.settings-preset-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin-bottom: 1em;
+}
+
+.settings-preset-btn {
+	padding: 0.4em 0.75em;
+	font-size: var(--font-ui-small);
+	border-radius: var(--radius-s);
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-normal);
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.settings-preset-btn:hover {
+	background: var(--background-modifier-hover);
+	border-color: var(--background-modifier-border-hover);
+}
+
+/* Inline checkbox rows */
+.settings-checkbox-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1em;
+	margin-bottom: 0.75em;
+}
+
+.settings-checkbox {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	cursor: pointer;
+}
+
+.settings-checkbox input[type="checkbox"] {
+	margin: 0;
+}
+
+/* Button row container */
+.settings-button-row {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin-top: 0.5em;
+}
+
+/* Template variable help */
+.settings-template-vars {
+	font-size: 0.85em;
+	color: var(--text-muted);
+	margin-top: 0.25em;
+}
+
+.settings-template-vars code {
+	background: var(--background-modifier-form-field);
+	padding: 0.1em 0.3em;
+	border-radius: 2px;
+	font-size: 0.9em;
+}
+
+/* ============================================================================
    Mobile / Responsive Styles
    ============================================================================ */
 
@@ -999,5 +1283,38 @@
 	.filter-presets-buttons button {
 		padding: 0.35em 0.6em;
 		font-size: var(--font-ui-smaller);
+	}
+
+	/* Settings tabs - scrollable on mobile */
+	.settings-tab-bar {
+		overflow-x: auto;
+		padding: 0.5em 0;
+		gap: 0.25em;
+	}
+
+	.settings-tab-btn {
+		padding: 0.5em 0.75em;
+		font-size: 0.85em;
+		white-space: nowrap;
+	}
+
+	/* Platform grid stacks on mobile */
+	.settings-platform-grid {
+		grid-template-columns: 1fr;
+	}
+
+	/* Collapsible sections - tighter padding */
+	.settings-collapsible summary {
+		padding: 0.6em 0.75em;
+	}
+
+	.settings-collapsible-content {
+		padding: 0.75em;
+	}
+
+	/* Info boxes - tighter on mobile */
+	.settings-info-box {
+		padding: 0.75em;
+		font-size: 0.85em;
 	}
 }

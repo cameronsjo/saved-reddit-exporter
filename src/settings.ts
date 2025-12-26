@@ -1,12 +1,4 @@
-import {
-  App,
-  Notice,
-  Plugin,
-  PluginSettingTab,
-  setIcon,
-  Setting,
-  TextAreaComponent,
-} from 'obsidian';
+import { App, Notice, Plugin, PluginSettingTab, setIcon, Setting } from 'obsidian';
 import {
   RedditSavedSettings,
   FilterSettings,
@@ -15,6 +7,7 @@ import {
   DateRangePreset,
   UnsaveMode,
   CredentialBackup,
+  SettingsTab,
 } from './types';
 import { FILTER_PRESETS } from './filters';
 import {
@@ -25,6 +18,19 @@ import {
 } from './constants';
 
 const REDDIT_MAX_ITEMS = 1000; // Reddit's hard limit
+
+interface TabConfig {
+  id: SettingsTab;
+  label: string;
+  icon: string;
+}
+
+const TABS: TabConfig[] = [
+  { id: 'setup', label: 'Setup', icon: 'key' },
+  { id: 'import', label: 'Import', icon: 'download' },
+  { id: 'filters', label: 'Filters', icon: 'filter' },
+  { id: 'advanced', label: 'Advanced', icon: 'settings' },
+];
 
 export class RedditSavedSettingTab extends PluginSettingTab {
   private settings: RedditSavedSettings;
@@ -46,61 +52,81 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
   display(): void {
     const { containerEl } = this;
-
     containerEl.empty();
+    containerEl.addClass('reddit-saved-settings');
 
-    new Setting(containerEl).setName('Reddit Saved Posts Settings').setHeading();
+    // Tab bar
+    this.buildTabBar(containerEl);
 
-    const setupInstructions = containerEl.createDiv();
+    // Tab content
+    const contentEl = containerEl.createDiv({ cls: 'settings-tab-content' });
 
-    const firstPara = setupInstructions.createEl('p');
-    firstPara.createSpan({ text: 'To use this plugin, create a Reddit app at ' });
-    firstPara
-      .createEl('a', {
-        text: 'Reddit Apps',
-        href: 'https://www.reddit.com/prefs/apps',
-      })
-      .setAttr('target', '_blank');
+    switch (this.settings.activeSettingsTab) {
+      case 'setup':
+        this.displaySetupTab(contentEl);
+        break;
+      case 'import':
+        this.displayImportTab(contentEl);
+        break;
+      case 'filters':
+        this.displayFiltersTab(contentEl);
+        break;
+      case 'advanced':
+        this.displayAdvancedTab(contentEl);
+        break;
+    }
+  }
 
-    // Platform options box
-    const platformBox = setupInstructions.createDiv();
-    platformBox.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '12px',
-      borderRadius: '6px',
-      marginTop: '10px',
-      marginBottom: '15px',
-    });
+  private buildTabBar(containerEl: HTMLElement): void {
+    const tabBar = containerEl.createDiv({ cls: 'settings-tab-bar' });
 
-    platformBox.createEl('strong', { text: 'Choose your app type:' });
+    for (const tab of TABS) {
+      const btn = tabBar.createEl('button', { cls: 'settings-tab-btn' });
 
-    // Mobile/All platforms option
-    const mobileOption = platformBox.createDiv();
-    mobileOption.setCssProps({ marginTop: '10px' });
-    const mobileLabel = mobileOption.createEl('div');
-    mobileLabel.setCssProps({ display: 'flex', alignItems: 'center', gap: '6px' });
+      const iconSpan = btn.createSpan({ cls: 'settings-tab-icon' });
+      setIcon(iconSpan, tab.icon);
+      btn.createSpan({ text: tab.label });
+
+      if (this.settings.activeSettingsTab === tab.id) {
+        btn.addClass('active');
+      }
+
+      btn.addEventListener('click', async () => {
+        this.settings.activeSettingsTab = tab.id;
+        await this.saveSettings();
+        this.display();
+      });
+    }
+  }
+
+  // ============================================================================
+  // SETUP TAB
+  // ============================================================================
+
+  private displaySetupTab(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName('Authentication').setHeading();
+
+    // Platform guide
+    const platformBox = containerEl.createDiv({ cls: 'settings-info-box' });
+    platformBox.createEl('strong', { text: 'Choose your Reddit app type:' });
+
+    const optionsGrid = platformBox.createDiv({ cls: 'settings-platform-grid' });
+
+    // Mobile option
+    const mobileOption = optionsGrid.createDiv({ cls: 'settings-platform-option' });
+    const mobileLabel = mobileOption.createEl('div', { cls: 'settings-platform-label' });
     setIcon(mobileLabel.createSpan(), 'smartphone');
     mobileLabel.createEl('strong', { text: 'Mobile / All Platforms' });
-    const mobileDesc = mobileOption.createEl('div');
-    mobileDesc.setCssProps({ marginLeft: '22px', fontSize: '0.9em', color: 'var(--text-muted)' });
-    mobileDesc.createSpan({
-      text: 'Create an "installed app" • Leave Client Secret empty • Redirect URI: ',
-    });
-    mobileDesc.createEl('code', { text: OBSIDIAN_REDIRECT_URI });
+    const mobileDesc = mobileOption.createEl('div', { cls: 'settings-platform-desc' });
+    mobileDesc.innerHTML = `"installed app" &bull; No secret needed<br><code>${OBSIDIAN_REDIRECT_URI}</code>`;
 
     // Desktop option
-    const desktopOption = platformBox.createDiv();
-    desktopOption.setCssProps({ marginTop: '10px' });
-    const desktopLabel = desktopOption.createEl('div');
-    desktopLabel.setCssProps({ display: 'flex', alignItems: 'center', gap: '6px' });
+    const desktopOption = optionsGrid.createDiv({ cls: 'settings-platform-option' });
+    const desktopLabel = desktopOption.createEl('div', { cls: 'settings-platform-label' });
     setIcon(desktopLabel.createSpan(), 'monitor');
     desktopLabel.createEl('strong', { text: 'Desktop Only' });
-    const desktopDesc = desktopOption.createEl('div');
-    desktopDesc.setCssProps({ marginLeft: '22px', fontSize: '0.9em', color: 'var(--text-muted)' });
-    desktopDesc.createSpan({
-      text: 'Create a "script" app • Enter Client Secret • Redirect URI: ',
-    });
-    desktopDesc.createEl('code', { text: `http://localhost:${this.settings.oauthRedirectPort}` });
+    const desktopDesc = desktopOption.createEl('div', { cls: 'settings-platform-desc' });
+    desktopDesc.innerHTML = `"script" app &bull; Secret required<br><code>http://localhost:${this.settings.oauthRedirectPort}</code>`;
 
     new Setting(containerEl)
       .setName('Client ID')
@@ -117,7 +143,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Client secret')
-      .setDesc('Your Reddit app client secret (leave empty for mobile/installed app)')
+      .setDesc('Leave empty for mobile/installed app')
       .addText(text =>
         text
           .setPlaceholder('Leave empty for mobile')
@@ -125,39 +151,24 @@ export class RedditSavedSettingTab extends PluginSettingTab {
           .onChange(async value => {
             this.settings.clientSecret = value;
             await this.saveSettings();
-            this.display(); // Refresh to update mode indicator
+            this.display();
           })
       );
 
-    // Show current OAuth mode indicator
+    // Mode indicator
     const isInstalledApp = !this.settings.clientSecret?.trim();
-    const modeIndicator = containerEl.createDiv();
-    modeIndicator.setCssProps({
-      backgroundColor: isInstalledApp
-        ? 'var(--background-modifier-success)'
-        : 'var(--background-secondary)',
-      padding: '8px 12px',
-      borderRadius: '4px',
-      marginBottom: '15px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      fontSize: '0.9em',
-    });
+    const modeIndicator = containerEl.createDiv({ cls: 'settings-mode-indicator' });
+    modeIndicator.addClass(isInstalledApp ? 'mode-mobile' : 'mode-desktop');
     setIcon(modeIndicator.createSpan(), isInstalledApp ? 'smartphone' : 'monitor');
     modeIndicator.createSpan({
-      text: isInstalledApp
-        ? 'Mobile Mode — Works on all platforms including iOS/Android'
-        : 'Desktop Mode — Works on desktop only (macOS/Windows/Linux)',
+      text: isInstalledApp ? 'Mobile Mode — Works on all platforms' : 'Desktop Mode — Desktop only',
     });
 
-    // Credential Backup/Restore Section
-    this.displayCredentialBackup(containerEl);
-
+    // Auth button
     if (this.settings.username) {
       new Setting(containerEl)
         .setName('Authenticated user')
-        .setDesc(`Currently authenticated as: ${this.settings.username}`)
+        .setDesc(`Logged in as: ${this.settings.username}`)
         .addButton(button =>
           button.setButtonText('Re-authenticate').onClick(async () => {
             await this.initiateOAuth();
@@ -166,10 +177,10 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     } else {
       new Setting(containerEl)
         .setName('Authentication')
-        .setDesc('Authenticate with Reddit to access your saved posts')
+        .setDesc('Connect your Reddit account')
         .addButton(button =>
           button
-            .setButtonText('Authenticate')
+            .setButtonText('Authenticate with Reddit')
             .setCta()
             .onClick(async () => {
               await this.initiateOAuth();
@@ -177,120 +188,15 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
     }
 
-    // Content Types Section
-    new Setting(containerEl).setName('Content types').setHeading();
+    // Credential backup (collapsible)
+    this.displayCredentialBackup(containerEl);
 
-    const contentTypesInfo = containerEl.createDiv();
-    contentTypesInfo.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '10px',
-      borderRadius: '4px',
-      marginBottom: '15px',
-    });
-
-    contentTypesInfo.createEl('strong', { text: 'ℹ️ Choose what to import' });
-    contentTypesInfo.createEl('br');
-    contentTypesInfo.createSpan({
-      text: 'Select the types of Reddit content you want to import to your vault.',
-    });
+    // Save location
+    new Setting(containerEl).setName('Save Location').setHeading();
 
     new Setting(containerEl)
-      .setName('Saved posts')
-      .setDesc('Import posts you have saved on Reddit')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.importSavedPosts).onChange(async value => {
-          this.settings.importSavedPosts = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Saved comments')
-      .setDesc('Import comments you have saved on Reddit')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.importSavedComments).onChange(async value => {
-          this.settings.importSavedComments = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Upvoted posts')
-      .setDesc('Import posts you have upvoted')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.importUpvoted).onChange(async value => {
-          this.settings.importUpvoted = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Your posts')
-      .setDesc('Import posts you have submitted to Reddit')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.importUserPosts).onChange(async value => {
-          this.settings.importUserPosts = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Your comments')
-      .setDesc('Import comments you have posted on Reddit')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.importUserComments).onChange(async value => {
-          this.settings.importUserComments = value;
-          await this.saveSettings();
-        })
-      );
-
-    // Crosspost Settings
-    new Setting(containerEl).setName('Crosspost handling').setHeading();
-
-    new Setting(containerEl)
-      .setName('Import original post')
-      .setDesc('When a post is a crosspost, import the original post instead of the crosspost')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.importCrosspostOriginal).onChange(async value => {
-          this.settings.importCrosspostOriginal = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Preserve crosspost metadata')
-      .setDesc('Keep information about crosspost relationships in the frontmatter')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.preserveCrosspostMetadata).onChange(async value => {
-          this.settings.preserveCrosspostMetadata = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl).setName('Import settings').setHeading();
-
-    // Rate limiting info
-    const rateLimitInfo = containerEl.createDiv();
-    rateLimitInfo.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '10px',
-      borderRadius: '4px',
-      marginBottom: '15px',
-    });
-
-    rateLimitInfo.createEl('strong', { text: 'ℹ️ Reddit API limits' });
-    rateLimitInfo.createEl('br');
-    rateLimitInfo.createSpan({ text: '• Maximum 1,000 items per content type can be fetched' });
-    rateLimitInfo.createEl('br');
-    rateLimitInfo.createSpan({ text: '• Rate limiting applies (60 requests/minute)' });
-    rateLimitInfo.createEl('br');
-    rateLimitInfo.createSpan({ text: '• Large fetches may take several minutes' });
-    rateLimitInfo.createEl('br');
-    rateLimitInfo.createSpan({ text: '• Progress will be shown during import' });
-
-    new Setting(containerEl)
-      .setName('Save location')
-      .setDesc('Folder where Reddit posts will be saved')
+      .setName('Save folder')
+      .setDesc('Where Reddit posts will be saved in your vault')
       .addText(text =>
         text
           .setPlaceholder('Reddit Saved')
@@ -302,10 +208,150 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName('OAuth redirect port')
+      .setDesc('Port for OAuth callback (desktop/script app only)')
+      .addText(text =>
+        text
+          .setPlaceholder('9638')
+          .setValue(String(this.settings.oauthRedirectPort))
+          .onChange(async value => {
+            const port = parseInt(value);
+            if (!isNaN(port) && port > 1000 && port < 65536) {
+              this.settings.oauthRedirectPort = port;
+              await this.saveSettings();
+              this.display();
+            }
+          })
+      );
+  }
+
+  private displayCredentialBackup(containerEl: HTMLElement): void {
+    if (!this.settings.clientId && !this.settings.accessToken) {
+      return;
+    }
+
+    const details = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const summary = details.createEl('summary');
+    setIcon(summary.createSpan(), 'shield');
+    summary.createSpan({ text: 'Credential Backup' });
+
+    const content = details.createDiv({ cls: 'settings-collapsible-content' });
+    content.createEl('p', {
+      text: 'Backup credentials before testing new OAuth configurations.',
+      cls: 'setting-item-description',
+    });
+
+    const buttonContainer = content.createDiv({ cls: 'settings-button-row' });
+
+    const exportBtn = buttonContainer.createEl('button', { text: 'Export to Clipboard' });
+    exportBtn.addEventListener('click', async () => {
+      const backup: CredentialBackup = {
+        version: 1,
+        createdAt: new Date().toISOString(),
+        clientId: this.settings.clientId,
+        clientSecret: this.settings.clientSecret,
+        accessToken: this.settings.accessToken,
+        refreshToken: this.settings.refreshToken,
+        tokenExpiry: this.settings.tokenExpiry,
+        username: this.settings.username,
+      };
+      await navigator.clipboard.writeText(JSON.stringify(backup, null, 2));
+      new Notice('Credentials copied to clipboard!');
+    });
+
+    const importBtn = buttonContainer.createEl('button', { text: 'Import from Clipboard' });
+    importBtn.addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        const backup = JSON.parse(text) as CredentialBackup;
+
+        if (backup.version !== 1 || !backup.clientId || !backup.createdAt) {
+          new Notice('Invalid backup format');
+          return;
+        }
+
+        this.settings.clientId = backup.clientId;
+        this.settings.clientSecret = backup.clientSecret;
+        this.settings.accessToken = backup.accessToken;
+        this.settings.refreshToken = backup.refreshToken;
+        this.settings.tokenExpiry = backup.tokenExpiry;
+        this.settings.username = backup.username;
+
+        await this.saveSettings();
+        this.display();
+        new Notice(`Credentials restored from ${new Date(backup.createdAt).toLocaleDateString()}`);
+      } catch {
+        new Notice('Failed to import. Check clipboard contents.');
+      }
+    });
+  }
+
+  // ============================================================================
+  // IMPORT TAB
+  // ============================================================================
+
+  private displayImportTab(containerEl: HTMLElement): void {
+    new Setting(containerEl).setName('Content Types').setHeading();
+
+    const contentInfo = containerEl.createDiv({ cls: 'settings-info-box compact' });
+    contentInfo.createSpan({ text: 'Select which Reddit content to import.' });
+
+    new Setting(containerEl)
+      .setName('Saved posts')
+      .setDesc('Posts you have saved')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importSavedPosts).onChange(async value => {
+          this.settings.importSavedPosts = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Saved comments')
+      .setDesc('Comments you have saved')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importSavedComments).onChange(async value => {
+          this.settings.importSavedComments = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Upvoted posts')
+      .setDesc('Posts you have upvoted')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUpvoted).onChange(async value => {
+          this.settings.importUpvoted = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Your posts')
+      .setDesc('Posts you have submitted')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUserPosts).onChange(async value => {
+          this.settings.importUserPosts = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Your comments')
+      .setDesc('Comments you have posted')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.importUserComments).onChange(async value => {
+          this.settings.importUserComments = value;
+          await this.saveSettings();
+        })
+      );
+
+    // Post Processing
+    new Setting(containerEl).setName('Post Processing').setHeading();
+
+    new Setting(containerEl)
       .setName('Fetch limit')
-      .setDesc(
-        `Maximum saved posts to fetch (Reddit's hard limit: ${REDDIT_MAX_ITEMS}. Higher numbers may take longer due to rate limiting)`
-      )
+      .setDesc(`Max items per import (Reddit cap: ${REDDIT_MAX_ITEMS})`)
       .addText(text =>
         text
           .setPlaceholder(String(REDDIT_MAX_ITEMS))
@@ -313,11 +359,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
           .onChange(async value => {
             const num = parseInt(value);
             if (!isNaN(num) && num > 0) {
-              const finalLimit = Math.min(num, REDDIT_MAX_ITEMS);
-              if (finalLimit !== num) {
-                new Notice(`Limit capped at Reddit's maximum: ${REDDIT_MAX_ITEMS}`);
-              }
-              this.settings.fetchLimit = finalLimit;
+              this.settings.fetchLimit = Math.min(num, REDDIT_MAX_ITEMS);
               await this.saveSettings();
             }
           })
@@ -325,7 +367,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Skip existing')
-      .setDesc('Skip posts that have already been imported (checks by Reddit ID in frontmatter)')
+      .setDesc('Skip posts already imported (by Reddit ID)')
       .addToggle(toggle =>
         toggle.setValue(this.settings.skipExisting).onChange(async value => {
           this.settings.skipExisting = value;
@@ -335,100 +377,71 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Unsave after import')
-      .setDesc(
-        'Choose how to handle unsaving posts from Reddit after importing. Note: If you previously authenticated without this feature, you must re-authenticate to grant the required permission.'
-      )
+      .setDesc('Remove from Reddit after importing')
       .addDropdown(dropdown =>
         dropdown
-          .addOption('off', 'Off - Keep saved on Reddit')
-          .addOption('prompt', 'Prompt - Choose which to unsave')
-          .addOption('auto', 'Auto - Unsave all imported')
+          .addOption('off', 'Off - Keep saved')
+          .addOption('prompt', 'Prompt - Choose which')
+          .addOption('auto', 'Auto - Unsave all')
           .setValue(this.settings.unsaveMode)
           .onChange(async value => {
             this.settings.unsaveMode = value as UnsaveMode;
-            // Keep legacy setting in sync for backwards compatibility
             this.settings.autoUnsave = value === 'auto';
             await this.saveSettings();
           })
       );
 
-    new Setting(containerEl)
-      .setName('Organize by subreddit')
-      .setDesc(
-        'Create subfolders for each subreddit (legacy - use folder template for more control)'
-      )
+    // Crosspost handling (collapsible)
+    const crosspostDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const crosspostSummary = crosspostDetails.createEl('summary');
+    setIcon(crosspostSummary.createSpan(), 'git-branch');
+    crosspostSummary.createSpan({ text: 'Crosspost Handling' });
+
+    const crosspostContent = crosspostDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    new Setting(crosspostContent)
+      .setName('Import original post')
+      .setDesc('Import the original instead of the crosspost')
       .addToggle(toggle =>
-        toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
-          this.settings.organizeBySubreddit = value;
+        toggle.setValue(this.settings.importCrosspostOriginal).onChange(async value => {
+          this.settings.importCrosspostOriginal = value;
           await this.saveSettings();
         })
       );
 
-    new Setting(containerEl)
-      .setName('Folder template')
-      .setDesc('Custom folder structure using variables. Leave empty for flat structure.')
-      .addText(text =>
-        text
-          .setPlaceholder('{subreddit}/{year}')
-          .setValue(this.settings.folderTemplate)
-          .onChange(async value => {
-            this.settings.folderTemplate = value;
-            await this.saveSettings();
-          })
+    new Setting(crosspostContent)
+      .setName('Preserve crosspost metadata')
+      .setDesc('Keep crosspost relationship info in frontmatter')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.preserveCrosspostMetadata).onChange(async value => {
+          this.settings.preserveCrosspostMetadata = value;
+          await this.saveSettings();
+        })
       );
 
-    new Setting(containerEl)
-      .setName('Filename template')
-      .setDesc('Custom filename format. Leave empty for default title-based names.')
-      .addText(text =>
-        text
-          .setPlaceholder('{title}')
-          .setValue(this.settings.filenameTemplate)
-          .onChange(async value => {
-            this.settings.filenameTemplate = value;
-            await this.saveSettings();
-          })
-      );
+    // Comment export (collapsible)
+    const commentDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const commentSummary = commentDetails.createEl('summary');
+    setIcon(commentSummary.createSpan(), 'message-square');
+    commentSummary.createSpan({ text: 'Comment Export' });
 
-    // Template variables reference
-    const templateInfo = containerEl.createDiv();
-    templateInfo.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '10px',
-      borderRadius: '4px',
-      marginBottom: '15px',
-      fontSize: '0.85em',
-    });
+    const commentContent = commentDetails.createDiv({ cls: 'settings-collapsible-content' });
 
-    templateInfo.createEl('strong', { text: '📁 Template Variables:' });
-    templateInfo.createEl('br');
-    const varText = templateInfo.createEl('code', { cls: 'settings-code-small' });
-    varText.textContent =
-      '{subreddit} {author} {type} {origin} {year} {month} {day} {title} {id} {flair} {postType} {score}';
-    templateInfo.createEl('br');
-    templateInfo.createEl('br');
-    templateInfo.createEl('span', { text: 'Examples: ' });
-    templateInfo.createEl('code', { text: '{subreddit}/{year}/{month}' });
-    templateInfo.createEl('span', { text: ' → ' });
-    templateInfo.createEl('code', { text: 'programming/2024/01/' });
-
-    new Setting(containerEl).setName('Comment export settings').setHeading();
-
-    new Setting(containerEl)
+    new Setting(commentContent)
       .setName('Export post comments')
-      .setDesc('Include top comments when exporting saved posts')
+      .setDesc('Include top comments when exporting posts')
       .addToggle(toggle =>
         toggle.setValue(this.settings.exportPostComments).onChange(async value => {
           this.settings.exportPostComments = value;
           await this.saveSettings();
-          this.display(); // Refresh to show/hide threshold setting
+          this.display();
         })
       );
 
     if (this.settings.exportPostComments) {
-      new Setting(containerEl)
+      new Setting(commentContent)
         .setName('Comment upvote threshold')
-        .setDesc('Minimum upvotes required for a comment to be included (0 = include all)')
+        .setDesc('Minimum upvotes to include (0 = all)')
         .addText(text =>
           text
             .setPlaceholder('0')
@@ -443,461 +456,58 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         );
     }
 
-    // Advanced Settings Section
-    new Setting(containerEl).setName('Advanced settings').setHeading();
+    // Organization
+    new Setting(containerEl).setName('Organization').setHeading();
 
     new Setting(containerEl)
-      .setName('Show advanced settings')
-      .setDesc('Toggle advanced configuration options')
+      .setName('Organize by subreddit')
+      .setDesc('Create subfolders per subreddit')
       .addToggle(toggle =>
-        toggle.setValue(this.settings.showAdvancedSettings).onChange(async value => {
-          this.settings.showAdvancedSettings = value;
+        toggle.setValue(this.settings.organizeBySubreddit).onChange(async value => {
+          this.settings.organizeBySubreddit = value;
           await this.saveSettings();
-          this.display(); // Refresh the settings page
         })
       );
 
-    if (this.settings.showAdvancedSettings) {
-      new Setting(containerEl)
-        .setName('OAuth redirect port')
-        .setDesc('Port for OAuth callback (must match Reddit app redirect URI)')
-        .addText(text =>
-          text
-            .setPlaceholder('9638')
-            .setValue(String(this.settings.oauthRedirectPort))
-            .onChange(async value => {
-              const port = parseInt(value);
-              if (!isNaN(port) && port > 1000 && port < 65536) {
-                this.settings.oauthRedirectPort = port;
-                await this.saveSettings();
-                this.display(); // Refresh to update the redirect URI display
-              }
-            })
-        );
-
-      // Media Download Settings
-      new Setting(containerEl).setName('Media download options').setHeading();
-
-      new Setting(containerEl)
-        .setName('Media folder')
-        .setDesc(
-          'Folder where downloaded media files will be saved (relative to vault root, separate from posts folder)'
-        )
-        .addText(text =>
-          text
-            .setPlaceholder('Attachments')
-            .setValue(this.settings.mediaFolder)
-            .onChange(async value => {
-              this.settings.mediaFolder = value || 'Attachments';
-              await this.saveSettings();
-            })
-        );
-
-      new Setting(containerEl)
-        .setName('Download images')
-        .setDesc('Automatically download linked images (PNG, JPG, WEBP, etc.)')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.downloadImages).onChange(async value => {
-            this.settings.downloadImages = value;
+    new Setting(containerEl)
+      .setName('Folder template')
+      .setDesc('Custom folder structure')
+      .addText(text =>
+        text
+          .setPlaceholder('{subreddit}/{year}')
+          .setValue(this.settings.folderTemplate)
+          .onChange(async value => {
+            this.settings.folderTemplate = value;
             await this.saveSettings();
           })
-        );
+      );
 
-      new Setting(containerEl)
-        .setName('Download GIFs')
-        .setDesc('Automatically download GIF animations')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.downloadGifs).onChange(async value => {
-            this.settings.downloadGifs = value;
+    new Setting(containerEl)
+      .setName('Filename template')
+      .setDesc('Custom filename format')
+      .addText(text =>
+        text
+          .setPlaceholder('{title}')
+          .setValue(this.settings.filenameTemplate)
+          .onChange(async value => {
+            this.settings.filenameTemplate = value;
             await this.saveSettings();
           })
-        );
+      );
 
-      new Setting(containerEl)
-        .setName('Download videos')
-        .setDesc('Automatically download video files (MP4, WEBM, etc.)')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.downloadVideos).onChange(async value => {
-            this.settings.downloadVideos = value;
-            await this.saveSettings();
-          })
-        );
-
-      // Performance and Reliability Settings
-      new Setting(containerEl).setName('Performance and reliability').setHeading();
-
-      const perfInfo = containerEl.createDiv();
-      perfInfo.setCssProps({
-        backgroundColor: 'var(--background-secondary)',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '15px',
-      });
-
-      perfInfo.createEl('strong', { text: 'Performance features' });
-      perfInfo.createEl('br');
-      perfInfo.createSpan({
-        text: 'These settings improve reliability for large imports and unreliable networks.',
-      });
-
-      new Setting(containerEl)
-        .setName('Enhanced mode')
-        .setDesc(
-          'Enable advanced features: circuit breaker, request queuing, and adaptive rate limiting'
-        )
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.enableEnhancedMode).onChange(async value => {
-            this.settings.enableEnhancedMode = value;
-            await this.saveSettings();
-          })
-        );
-
-      new Setting(containerEl)
-        .setName('Enable checkpointing')
-        .setDesc('Save import progress to allow resuming interrupted imports')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.enableCheckpointing).onChange(async value => {
-            this.settings.enableCheckpointing = value;
-            await this.saveSettings();
-          })
-        );
-
-      new Setting(containerEl)
-        .setName('Show performance stats')
-        .setDesc('Display performance metrics after each import (logged to console)')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.showPerformanceStats).onChange(async value => {
-            this.settings.showPerformanceStats = value;
-            await this.saveSettings();
-          })
-        );
-
-      new Setting(containerEl)
-        .setName('Max concurrent requests')
-        .setDesc('Maximum number of simultaneous API requests (1-5). Lower values are safer.')
-        .addText(text =>
-          text
-            .setPlaceholder('2')
-            .setValue(String(this.settings.maxConcurrentRequests))
-            .onChange(async value => {
-              const num = parseInt(value);
-              if (!isNaN(num) && num >= 1 && num <= 5) {
-                this.settings.maxConcurrentRequests = num;
-                await this.saveSettings();
-              }
-            })
-        );
-
-      new Setting(containerEl)
-        .setName('Max retries')
-        .setDesc('Maximum retry attempts for failed requests (1-10)')
-        .addText(text =>
-          text
-            .setPlaceholder('3')
-            .setValue(String(this.settings.maxRetries))
-            .onChange(async value => {
-              const num = parseInt(value);
-              if (!isNaN(num) && num >= 1 && num <= 10) {
-                this.settings.maxRetries = num;
-                await this.saveSettings();
-              }
-            })
-        );
-
-      new Setting(containerEl)
-        .setName('Offline queue')
-        .setDesc('Queue requests when offline and process them when connection is restored')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.enableOfflineQueue).onChange(async value => {
-            this.settings.enableOfflineQueue = value;
-            await this.saveSettings();
-          })
-        );
-
-      // Templater Integration Settings
-      new Setting(containerEl).setName('Templater integration').setHeading();
-
-      const templaterInfo = containerEl.createDiv();
-      templaterInfo.setCssProps({
-        backgroundColor: 'var(--background-secondary)',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '15px',
-      });
-
-      templaterInfo.createEl('strong', { text: '🎨 Custom templates' });
-      templaterInfo.createEl('br');
-      templaterInfo.createSpan({
-        text: 'Use Templater plugin for custom output formats. Variables: {{reddit.title}}, {{reddit.author}}, {{reddit.subreddit}}, etc.',
-      });
-
-      new Setting(containerEl)
-        .setName('Use Templater')
-        .setDesc('Enable Templater plugin integration for custom templates')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.useTemplater).onChange(async value => {
-            this.settings.useTemplater = value;
-            await this.saveSettings();
-            this.display();
-          })
-        );
-
-      if (this.settings.useTemplater) {
-        new Setting(containerEl)
-          .setName('Post template path')
-          .setDesc('Path to template file for posts (relative to vault root)')
-          .addText(text =>
-            text
-              .setPlaceholder('templates/reddit-post.md')
-              .setValue(this.settings.postTemplatePath)
-              .onChange(async value => {
-                this.settings.postTemplatePath = value;
-                await this.saveSettings();
-              })
-          );
-
-        new Setting(containerEl)
-          .setName('Comment template path')
-          .setDesc('Path to template file for comments (relative to vault root)')
-          .addText(text =>
-            text
-              .setPlaceholder('templates/reddit-comment.md')
-              .setValue(this.settings.commentTemplatePath)
-              .onChange(async value => {
-                this.settings.commentTemplatePath = value;
-                await this.saveSettings();
-              })
-          );
-      }
-
-      // Comment Context Settings
-      new Setting(containerEl).setName('Comment context options').setHeading();
-
-      const contextInfo = containerEl.createDiv();
-      contextInfo.setCssProps({
-        backgroundColor: 'var(--background-secondary)',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '15px',
-      });
-
-      contextInfo.createEl('strong', { text: '💬 Comment context' });
-      contextInfo.createEl('br');
-      contextInfo.createSpan({
-        text: 'Fetch parent comments and replies for saved comments. Note: This requires additional API calls per comment.',
-      });
-
-      new Setting(containerEl)
-        .setName('Fetch parent context')
-        .setDesc('Fetch parent comments to show conversation context for saved comments')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.fetchCommentContext).onChange(async value => {
-            this.settings.fetchCommentContext = value;
-            await this.saveSettings();
-            this.display();
-          })
-        );
-
-      if (this.settings.fetchCommentContext) {
-        new Setting(containerEl)
-          .setName('Context depth')
-          .setDesc(`Number of parent comments to fetch (1-${COMMENT_CONTEXT_MAX})`)
-          .addSlider(slider =>
-            slider
-              .setLimits(1, COMMENT_CONTEXT_MAX, 1)
-              .setValue(this.settings.commentContextDepth)
-              .setDynamicTooltip()
-              .onChange(async value => {
-                this.settings.commentContextDepth = value;
-                await this.saveSettings();
-              })
-          );
-      }
-
-      new Setting(containerEl)
-        .setName('Include replies')
-        .setDesc('Fetch replies to saved comments')
-        .addToggle(toggle =>
-          toggle.setValue(this.settings.includeCommentReplies).onChange(async value => {
-            this.settings.includeCommentReplies = value;
-            await this.saveSettings();
-            this.display();
-          })
-        );
-
-      if (this.settings.includeCommentReplies) {
-        new Setting(containerEl)
-          .setName('Reply depth')
-          .setDesc(`Number of reply levels to fetch (1-${COMMENT_MAX_DEPTH})`)
-          .addSlider(slider =>
-            slider
-              .setLimits(1, COMMENT_MAX_DEPTH, 1)
-              .setValue(this.settings.commentReplyDepth)
-              .setDynamicTooltip()
-              .onChange(async value => {
-                this.settings.commentReplyDepth = value;
-                await this.saveSettings();
-              })
-          );
-      }
-    }
-
-    // Link Preservation Settings
-    this.displayLinkPreservationSettings(containerEl);
-
-    // Filter Settings Section
-    this.displayFilterSettings(containerEl);
-  }
-
-  private displayCredentialBackup(containerEl: HTMLElement): void {
-    // Only show if user has credentials configured
-    if (!this.settings.clientId && !this.settings.accessToken) {
-      return;
-    }
-
-    const backupSection = containerEl.createDiv();
-    backupSection.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '12px',
-      borderRadius: '6px',
-      marginBottom: '15px',
-    });
-
-    const headerEl = backupSection.createEl('div');
-    headerEl.setCssProps({
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      marginBottom: '8px',
-    });
-    setIcon(headerEl.createSpan(), 'shield');
-    headerEl.createEl('strong', { text: 'Credential Backup' });
-
-    const descEl = backupSection.createEl('div');
-    descEl.setCssProps({ fontSize: '0.85em', color: 'var(--text-muted)', marginBottom: '10px' });
-    descEl.createSpan({
-      text: 'Backup your credentials before testing new OAuth configurations. Restore to revert if needed.',
-    });
-
-    const buttonContainer = backupSection.createEl('div');
-    buttonContainer.setCssProps({ display: 'flex', gap: '8px', flexWrap: 'wrap' });
-
-    // Export button
-    const exportBtn = buttonContainer.createEl('button', { text: 'Export to Clipboard' });
-    exportBtn.addEventListener('click', async () => {
-      const backup: CredentialBackup = {
-        version: 1,
-        createdAt: new Date().toISOString(),
-        clientId: this.settings.clientId,
-        clientSecret: this.settings.clientSecret,
-        accessToken: this.settings.accessToken,
-        refreshToken: this.settings.refreshToken,
-        tokenExpiry: this.settings.tokenExpiry,
-        username: this.settings.username,
-      };
-      await navigator.clipboard.writeText(JSON.stringify(backup, null, 2));
-      new Notice('Credentials copied to clipboard. Store them securely!');
-    });
-
-    // Import button
-    const importBtn = buttonContainer.createEl('button', { text: 'Import from Clipboard' });
-    importBtn.addEventListener('click', async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        const backup = JSON.parse(text) as CredentialBackup;
-
-        // Validate structure
-        if (backup.version !== 1 || !backup.clientId || !backup.createdAt) {
-          new Notice('Invalid backup format. Please check the clipboard contents.');
-          return;
-        }
-
-        // Restore credentials
-        this.settings.clientId = backup.clientId;
-        this.settings.clientSecret = backup.clientSecret;
-        this.settings.accessToken = backup.accessToken;
-        this.settings.refreshToken = backup.refreshToken;
-        this.settings.tokenExpiry = backup.tokenExpiry;
-        this.settings.username = backup.username;
-
-        await this.saveSettings();
-        this.display(); // Refresh UI
-
-        const backupDate = new Date(backup.createdAt).toLocaleString();
-        new Notice(`Credentials restored from backup (${backupDate})`);
-      } catch {
-        new Notice('Failed to import. Ensure valid JSON is in clipboard.');
-      }
+    // Template variables reference
+    const templateInfo = containerEl.createDiv({ cls: 'settings-info-box compact' });
+    templateInfo.createEl('strong', { text: 'Variables: ' });
+    templateInfo.createEl('code', {
+      text: '{subreddit} {author} {type} {year} {month} {day} {title} {id} {score}',
     });
   }
 
-  private displayLinkPreservationSettings(containerEl: HTMLElement): void {
-    new Setting(containerEl).setName('Link preservation').setHeading();
+  // ============================================================================
+  // FILTERS TAB
+  // ============================================================================
 
-    new Setting(containerEl)
-      .setName('Enable link preservation')
-      .setDesc('Extract external links and integrate with Internet Archive Wayback Machine')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.enableLinkPreservation).onChange(async value => {
-          this.settings.enableLinkPreservation = value;
-          await this.saveSettings();
-          this.display();
-        })
-      );
-
-    if (!this.settings.enableLinkPreservation) {
-      return;
-    }
-
-    new Setting(containerEl)
-      .setName('Extract external links')
-      .setDesc('Extract and list external links from post content')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.extractExternalLinks).onChange(async value => {
-          this.settings.extractExternalLinks = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Check Wayback archive')
-      .setDesc('Check if links are already archived (adds latency to imports)')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.checkWaybackArchive).onChange(async value => {
-          this.settings.checkWaybackArchive = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Include archive links')
-      .setDesc('Add Wayback Machine links for external URLs')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.includeArchiveLinks).onChange(async value => {
-          this.settings.includeArchiveLinks = value;
-          await this.saveSettings();
-        })
-      );
-  }
-
-  private displayFilterSettings(containerEl: HTMLElement): void {
-    new Setting(containerEl).setName('Import filters').setHeading();
-
-    new Setting(containerEl)
-      .setName('Show filter settings')
-      .setDesc('Configure filters to selectively import saved content')
-      .addToggle(toggle =>
-        toggle.setValue(this.settings.showFilterSettings).onChange(async value => {
-          this.settings.showFilterSettings = value;
-          await this.saveSettings();
-          this.display();
-        })
-      );
-
-    if (!this.settings.showFilterSettings) {
-      return;
-    }
-
+  private displayFiltersTab(containerEl: HTMLElement): void {
     // Ensure filterSettings exists
     if (!this.settings.filterSettings) {
       this.settings.filterSettings = { ...DEFAULT_FILTER_SETTINGS };
@@ -905,10 +515,30 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     const filters = this.settings.filterSettings;
 
-    // Enable/Disable Filtering
+    // Quick presets
+    new Setting(containerEl).setName('Quick Presets').setHeading();
+
+    const presetContainer = containerEl.createDiv({ cls: 'settings-preset-row' });
+    for (const [, preset] of Object.entries(FILTER_PRESETS)) {
+      const btn = presetContainer.createEl('button', {
+        text: preset.name,
+        cls: 'settings-preset-btn',
+      });
+      btn.title = preset.description;
+      btn.addEventListener('click', async () => {
+        Object.assign(this.settings.filterSettings, preset.settings);
+        await this.saveSettings();
+        this.display();
+        new Notice(`Applied: ${preset.name}`);
+      });
+    }
+
+    // Enable filtering
+    new Setting(containerEl).setName('Basic Filters').setHeading();
+
     new Setting(containerEl)
       .setName('Enable filtering')
-      .setDesc('When enabled, only items matching filter criteria will be imported')
+      .setDesc('Only import items matching filter criteria')
       .addToggle(toggle =>
         toggle.setValue(filters.enabled).onChange(async value => {
           filters.enabled = value;
@@ -918,347 +548,15 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     if (!filters.enabled) {
-      const infoDiv = containerEl.createDiv();
-      infoDiv.setCssProps({
-        backgroundColor: 'var(--background-secondary)',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '15px',
-      });
-      infoDiv.createSpan({
-        text: 'ℹ️ Filtering is disabled. Enable it above to configure filters.',
-      });
+      const infoDiv = containerEl.createDiv({ cls: 'settings-info-box' });
+      infoDiv.createSpan({ text: 'Enable filtering above to configure filters.' });
       return;
     }
 
-    // Filter Presets
-    this.displayFilterPresets(containerEl, filters);
-
-    // Subreddit Filtering
-    this.displaySubredditFilters(containerEl, filters);
-
-    // Content Filtering
-    this.displayContentFilters(containerEl, filters);
-
-    // Score Filtering
-    this.displayScoreFilters(containerEl, filters);
-
-    // Post Type Filtering
-    this.displayPostTypeFilters(containerEl, filters);
-
-    // Date Range Filtering
-    this.displayDateFilters(containerEl, filters);
-
-    // Advanced Filters
-    this.displayAdvancedFilters(containerEl, filters);
-
-    // Reset Filters Button
-    new Setting(containerEl).addButton(button =>
-      button
-        .setButtonText('Reset all filters')
-        .setWarning()
-        .onClick(async () => {
-          this.settings.filterSettings = { ...DEFAULT_FILTER_SETTINGS, enabled: true };
-          await this.saveSettings();
-          this.display();
-          new Notice('Filters reset to defaults');
-        })
-    );
-  }
-
-  private displayFilterPresets(containerEl: HTMLElement, filters: FilterSettings): void {
-    const presetDiv = containerEl.createDiv({ cls: 'filter-presets-container' });
-
-    const labelEl = presetDiv.createEl('span', { cls: 'filter-presets-label' });
-    const iconEl = labelEl.createSpan({ cls: 'filter-presets-icon' });
-    setIcon(iconEl, 'sliders-horizontal');
-    labelEl.createSpan({ text: 'Quick presets' });
-
-    const buttonContainer = presetDiv.createDiv({ cls: 'filter-presets-buttons' });
-
-    for (const [key, preset] of Object.entries(FILTER_PRESETS)) {
-      const btn = buttonContainer.createEl('button', { text: preset.name });
-      btn.title = preset.description;
-      btn.addEventListener('click', async () => {
-        Object.assign(this.settings.filterSettings, preset.settings);
-        await this.saveSettings();
-        this.display();
-        new Notice(`Applied preset: ${preset.name}`);
-      });
-    }
-  }
-
-  private displaySubredditFilters(containerEl: HTMLElement, filters: FilterSettings): void {
-    new Setting(containerEl).setName('Subreddit filtering').setHeading();
-
-    new Setting(containerEl)
-      .setName('Subreddit filter mode')
-      .setDesc('Include only specific subreddits, or exclude specific subreddits')
-      .addDropdown(dropdown =>
-        dropdown
-          .addOption('include', 'Include only listed')
-          .addOption('exclude', 'Exclude listed')
-          .setValue(filters.subredditFilterMode)
-          .onChange(async (value: FilterMode) => {
-            filters.subredditFilterMode = value;
-            await this.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Subreddit list')
-      .setDesc('Enter subreddit names (one per line, without r/)')
-      .addTextArea(text => {
-        text
-          .setPlaceholder('AskReddit\nprogramming\ntechnology')
-          .setValue(filters.subredditList.join('\n'))
-          .onChange(async value => {
-            filters.subredditList = value
-              .split('\n')
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
-            await this.saveSettings();
-          });
-        text.inputEl.rows = 4;
-        text.inputEl.setCssProps({ width: '100%' });
-      });
-
-    new Setting(containerEl)
-      .setName('Use regex pattern')
-      .setDesc('Enable regex matching for subreddit names')
-      .addToggle(toggle =>
-        toggle.setValue(filters.useSubredditRegex).onChange(async value => {
-          filters.useSubredditRegex = value;
-          await this.saveSettings();
-          this.display();
-        })
-      );
-
-    if (filters.useSubredditRegex) {
-      new Setting(containerEl)
-        .setName('Subreddit regex')
-        .setDesc('Regular expression pattern to match subreddit names')
-        .addText(text =>
-          text
-            .setPlaceholder('^(programming|coding).*')
-            .setValue(filters.subredditRegex)
-            .onChange(async value => {
-              filters.subredditRegex = value;
-              await this.saveSettings();
-            })
-        );
-    }
-  }
-
-  private displayContentFilters(containerEl: HTMLElement, filters: FilterSettings): void {
-    new Setting(containerEl).setName('Content filtering').setHeading();
-
-    // Title keywords
-    new Setting(containerEl)
-      .setName('Title keyword mode')
-      .setDesc('Include posts with keywords, or exclude posts with keywords')
-      .addDropdown(dropdown =>
-        dropdown
-          .addOption('include', 'Must contain keywords')
-          .addOption('exclude', 'Must not contain keywords')
-          .setValue(filters.titleKeywordsMode)
-          .onChange(async (value: FilterMode) => {
-            filters.titleKeywordsMode = value;
-            await this.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Title keywords')
-      .setDesc('Keywords to search for in post titles (one per line)')
-      .addTextArea(text => {
-        text
-          .setPlaceholder('tutorial\nguide\nhow to')
-          .setValue(filters.titleKeywords.join('\n'))
-          .onChange(async value => {
-            filters.titleKeywords = value
-              .split('\n')
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
-            await this.saveSettings();
-          });
-        text.inputEl.rows = 3;
-        text.inputEl.setCssProps({ width: '100%' });
-      });
-
-    // Content keywords
-    new Setting(containerEl)
-      .setName('Content keyword mode')
-      .setDesc('Include posts with keywords in body, or exclude them')
-      .addDropdown(dropdown =>
-        dropdown
-          .addOption('include', 'Must contain keywords')
-          .addOption('exclude', 'Must not contain keywords')
-          .setValue(filters.contentKeywordsMode)
-          .onChange(async (value: FilterMode) => {
-            filters.contentKeywordsMode = value;
-            await this.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Content keywords')
-      .setDesc('Keywords to search for in post/comment body (one per line)')
-      .addTextArea(text => {
-        text
-          .setPlaceholder('python\njavascript\ntypescript')
-          .setValue(filters.contentKeywords.join('\n'))
-          .onChange(async value => {
-            filters.contentKeywords = value
-              .split('\n')
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
-            await this.saveSettings();
-          });
-        text.inputEl.rows = 3;
-        text.inputEl.setCssProps({ width: '100%' });
-      });
-
-    // Flair filtering
-    new Setting(containerEl)
-      .setName('Flair filter mode')
-      .setDesc('Include only posts with specific flairs, or exclude them')
-      .addDropdown(dropdown =>
-        dropdown
-          .addOption('include', 'Include only listed flairs')
-          .addOption('exclude', 'Exclude listed flairs')
-          .setValue(filters.flairFilterMode)
-          .onChange(async (value: FilterMode) => {
-            filters.flairFilterMode = value;
-            await this.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Flair list')
-      .setDesc('Flairs to filter (one per line)')
-      .addTextArea(text => {
-        text
-          .setPlaceholder('Discussion\nQuestion\nMeta')
-          .setValue(filters.flairList.join('\n'))
-          .onChange(async value => {
-            filters.flairList = value
-              .split('\n')
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
-            await this.saveSettings();
-          });
-        text.inputEl.rows = 3;
-        text.inputEl.setCssProps({ width: '100%' });
-      });
-  }
-
-  private displayScoreFilters(containerEl: HTMLElement, filters: FilterSettings): void {
-    new Setting(containerEl).setName('Score filtering').setHeading();
-
-    new Setting(containerEl)
-      .setName('Minimum score')
-      .setDesc('Only import posts with at least this many upvotes (leave empty for no minimum)')
-      .addText(text =>
-        text
-          .setPlaceholder('No minimum')
-          .setValue(filters.minScore !== null ? String(filters.minScore) : '')
-          .onChange(async value => {
-            const num = parseInt(value);
-            filters.minScore = !isNaN(num) ? num : null;
-            await this.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Maximum score')
-      .setDesc('Only import posts with at most this many upvotes (leave empty for no maximum)')
-      .addText(text =>
-        text
-          .setPlaceholder('No maximum')
-          .setValue(filters.maxScore !== null ? String(filters.maxScore) : '')
-          .onChange(async value => {
-            const num = parseInt(value);
-            filters.maxScore = !isNaN(num) ? num : null;
-            await this.saveSettings();
-          })
-      );
-
-    new Setting(containerEl)
-      .setName('Minimum upvote ratio')
-      .setDesc('Only import posts with at least this upvote ratio (0.0 to 1.0, e.g., 0.9 for 90%)')
-      .addText(text =>
-        text
-          .setPlaceholder('No minimum (e.g., 0.9)')
-          .setValue(filters.minUpvoteRatio !== null ? String(filters.minUpvoteRatio) : '')
-          .onChange(async value => {
-            const num = parseFloat(value);
-            if (!isNaN(num) && num >= 0 && num <= 1) {
-              filters.minUpvoteRatio = num;
-            } else if (value === '') {
-              filters.minUpvoteRatio = null;
-            }
-            await this.saveSettings();
-          })
-      );
-  }
-
-  private displayPostTypeFilters(containerEl: HTMLElement, filters: FilterSettings): void {
-    new Setting(containerEl).setName('Post type filtering').setHeading();
-
-    new Setting(containerEl)
-      .setName('Include posts')
-      .setDesc('Import saved posts')
-      .addToggle(toggle =>
-        toggle.setValue(filters.includePosts).onChange(async value => {
-          filters.includePosts = value;
-          await this.saveSettings();
-        })
-      );
-
-    new Setting(containerEl)
-      .setName('Include comments')
-      .setDesc('Import saved comments')
-      .addToggle(toggle =>
-        toggle.setValue(filters.includeComments).onChange(async value => {
-          filters.includeComments = value;
-          await this.saveSettings();
-        })
-      );
-
-    // Post type checkboxes
-    const postTypes: Array<{ type: PostType; label: string; desc: string }> = [
-      { type: 'text', label: 'Text posts', desc: 'Self posts with text content' },
-      { type: 'link', label: 'Link posts', desc: 'Posts linking to external content' },
-      { type: 'image', label: 'Image posts', desc: 'Posts with images or GIFs' },
-      { type: 'video', label: 'Video posts', desc: 'Posts with videos' },
-    ];
-
-    for (const { type, label, desc } of postTypes) {
-      new Setting(containerEl)
-        .setName(label)
-        .setDesc(desc)
-        .addToggle(toggle =>
-          toggle.setValue(filters.includePostTypes.includes(type)).onChange(async value => {
-            if (value) {
-              if (!filters.includePostTypes.includes(type)) {
-                filters.includePostTypes.push(type);
-              }
-            } else {
-              filters.includePostTypes = filters.includePostTypes.filter(t => t !== type);
-            }
-            await this.saveSettings();
-          })
-        );
-    }
-  }
-
-  private displayDateFilters(containerEl: HTMLElement, filters: FilterSettings): void {
-    new Setting(containerEl).setName('Date range filtering').setHeading();
-
+    // Basic filters
     new Setting(containerEl)
       .setName('Date range')
-      .setDesc('Only import posts from a specific time period')
+      .setDesc('Import posts from a specific time period')
       .addDropdown(dropdown =>
         dropdown
           .addOption('all', 'All time')
@@ -1276,49 +574,80 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     if (filters.dateRangePreset === 'custom') {
-      new Setting(containerEl)
-        .setName('Start date')
-        .setDesc('Only import posts after this date')
-        .addText(text =>
-          text
-            .setPlaceholder('YYYY-MM-DD')
-            .setValue(
-              filters.dateRangeStart
-                ? new Date(filters.dateRangeStart).toISOString().split('T')[0]
-                : ''
-            )
-            .onChange(async value => {
-              const date = new Date(value);
-              filters.dateRangeStart = !isNaN(date.getTime()) ? date.getTime() : null;
-              await this.saveSettings();
-            })
-        );
+      new Setting(containerEl).setName('Start date').addText(text =>
+        text
+          .setPlaceholder('YYYY-MM-DD')
+          .setValue(
+            filters.dateRangeStart
+              ? new Date(filters.dateRangeStart).toISOString().split('T')[0]
+              : ''
+          )
+          .onChange(async value => {
+            const date = new Date(value);
+            filters.dateRangeStart = !isNaN(date.getTime()) ? date.getTime() : null;
+            await this.saveSettings();
+          })
+      );
 
-      new Setting(containerEl)
-        .setName('End date')
-        .setDesc('Only import posts before this date')
-        .addText(text =>
-          text
-            .setPlaceholder('YYYY-MM-DD')
-            .setValue(
-              filters.dateRangeEnd ? new Date(filters.dateRangeEnd).toISOString().split('T')[0] : ''
-            )
-            .onChange(async value => {
-              const date = new Date(value);
-              filters.dateRangeEnd = !isNaN(date.getTime()) ? date.getTime() : null;
-              await this.saveSettings();
-            })
-        );
+      new Setting(containerEl).setName('End date').addText(text =>
+        text
+          .setPlaceholder('YYYY-MM-DD')
+          .setValue(
+            filters.dateRangeEnd ? new Date(filters.dateRangeEnd).toISOString().split('T')[0] : ''
+          )
+          .onChange(async value => {
+            const date = new Date(value);
+            filters.dateRangeEnd = !isNaN(date.getTime()) ? date.getTime() : null;
+            await this.saveSettings();
+          })
+      );
     }
-  }
 
-  private displayAdvancedFilters(containerEl: HTMLElement, filters: FilterSettings): void {
-    new Setting(containerEl).setName('Advanced filters').setHeading();
+    // Post types
+    const postTypes: Array<{ type: PostType; label: string }> = [
+      { type: 'text', label: 'Text' },
+      { type: 'link', label: 'Links' },
+      { type: 'image', label: 'Images' },
+      { type: 'video', label: 'Videos' },
+    ];
 
-    // NSFW filter
+    const postTypeContainer = containerEl.createDiv({ cls: 'settings-checkbox-row' });
+    postTypeContainer.createSpan({ text: 'Post types: ', cls: 'settings-checkbox-label' });
+
+    for (const { type, label } of postTypes) {
+      const checkbox = postTypeContainer.createEl('label', { cls: 'settings-checkbox' });
+      const input = checkbox.createEl('input', { type: 'checkbox' });
+      input.checked = filters.includePostTypes.includes(type);
+      input.addEventListener('change', async () => {
+        if (input.checked) {
+          if (!filters.includePostTypes.includes(type)) {
+            filters.includePostTypes.push(type);
+          }
+        } else {
+          filters.includePostTypes = filters.includePostTypes.filter(t => t !== type);
+        }
+        await this.saveSettings();
+      });
+      checkbox.createSpan({ text: label });
+    }
+
+    new Setting(containerEl).setName('Include posts').addToggle(toggle =>
+      toggle.setValue(filters.includePosts).onChange(async value => {
+        filters.includePosts = value;
+        await this.saveSettings();
+      })
+    );
+
+    new Setting(containerEl).setName('Include comments').addToggle(toggle =>
+      toggle.setValue(filters.includeComments).onChange(async value => {
+        filters.includeComments = value;
+        await this.saveSettings();
+      })
+    );
+
     new Setting(containerEl)
-      .setName('Exclude NSFW content')
-      .setDesc('Filter out posts marked as NSFW/18+')
+      .setName('Exclude NSFW')
+      .setDesc('Filter out adult content')
       .addToggle(toggle =>
         toggle.setValue(filters.excludeNsfw).onChange(async value => {
           filters.excludeNsfw = value;
@@ -1326,99 +655,544 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         })
       );
 
+    // Advanced Filters (collapsible)
+    const advancedDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const advancedSummary = advancedDetails.createEl('summary');
+    setIcon(advancedSummary.createSpan(), 'sliders-horizontal');
+    advancedSummary.createSpan({ text: 'Advanced Filters' });
+
+    const advancedContent = advancedDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    // Subreddit filtering
+    new Setting(advancedContent).setName('Subreddit Filtering').setHeading();
+
+    new Setting(advancedContent).setName('Mode').addDropdown(dropdown =>
+      dropdown
+        .addOption('include', 'Include only listed')
+        .addOption('exclude', 'Exclude listed')
+        .setValue(filters.subredditFilterMode)
+        .onChange(async (value: FilterMode) => {
+          filters.subredditFilterMode = value;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent)
+      .setName('Subreddits')
+      .setDesc('One per line, without r/')
+      .addTextArea(text => {
+        text
+          .setPlaceholder('AskReddit\nprogramming')
+          .setValue(filters.subredditList.join('\n'))
+          .onChange(async value => {
+            filters.subredditList = value
+              .split('\n')
+              .map(s => s.trim())
+              .filter(s => s.length > 0);
+            await this.saveSettings();
+          });
+        text.inputEl.rows = 3;
+      });
+
+    new Setting(advancedContent).setName('Use regex').addToggle(toggle =>
+      toggle.setValue(filters.useSubredditRegex).onChange(async value => {
+        filters.useSubredditRegex = value;
+        await this.saveSettings();
+        this.display();
+      })
+    );
+
+    if (filters.useSubredditRegex) {
+      new Setting(advancedContent).setName('Regex pattern').addText(text =>
+        text
+          .setPlaceholder('^(programming|coding).*')
+          .setValue(filters.subredditRegex)
+          .onChange(async value => {
+            filters.subredditRegex = value;
+            await this.saveSettings();
+          })
+      );
+    }
+
+    // Score filtering
+    new Setting(advancedContent).setName('Score Filtering').setHeading();
+
+    new Setting(advancedContent).setName('Minimum score').addText(text =>
+      text
+        .setPlaceholder('No minimum')
+        .setValue(filters.minScore !== null ? String(filters.minScore) : '')
+        .onChange(async value => {
+          const num = parseInt(value);
+          filters.minScore = !isNaN(num) ? num : null;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Maximum score').addText(text =>
+      text
+        .setPlaceholder('No maximum')
+        .setValue(filters.maxScore !== null ? String(filters.maxScore) : '')
+        .onChange(async value => {
+          const num = parseInt(value);
+          filters.maxScore = !isNaN(num) ? num : null;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent)
+      .setName('Min upvote ratio')
+      .setDesc('0.0 to 1.0')
+      .addText(text =>
+        text
+          .setPlaceholder('e.g., 0.9')
+          .setValue(filters.minUpvoteRatio !== null ? String(filters.minUpvoteRatio) : '')
+          .onChange(async value => {
+            const num = parseFloat(value);
+            if (!isNaN(num) && num >= 0 && num <= 1) {
+              filters.minUpvoteRatio = num;
+            } else if (value === '') {
+              filters.minUpvoteRatio = null;
+            }
+            await this.saveSettings();
+          })
+      );
+
+    // Content keywords
+    new Setting(advancedContent).setName('Content Filtering').setHeading();
+
+    new Setting(advancedContent).setName('Title keyword mode').addDropdown(dropdown =>
+      dropdown
+        .addOption('include', 'Must contain')
+        .addOption('exclude', 'Must not contain')
+        .setValue(filters.titleKeywordsMode)
+        .onChange(async (value: FilterMode) => {
+          filters.titleKeywordsMode = value;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Title keywords').addTextArea(text => {
+      text
+        .setPlaceholder('tutorial\nguide')
+        .setValue(filters.titleKeywords.join('\n'))
+        .onChange(async value => {
+          filters.titleKeywords = value
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+          await this.saveSettings();
+        });
+      text.inputEl.rows = 2;
+    });
+
+    new Setting(advancedContent).setName('Content keyword mode').addDropdown(dropdown =>
+      dropdown
+        .addOption('include', 'Must contain')
+        .addOption('exclude', 'Must not contain')
+        .setValue(filters.contentKeywordsMode)
+        .onChange(async (value: FilterMode) => {
+          filters.contentKeywordsMode = value;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Content keywords').addTextArea(text => {
+      text
+        .setPlaceholder('python\njavascript')
+        .setValue(filters.contentKeywords.join('\n'))
+        .onChange(async value => {
+          filters.contentKeywords = value
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+          await this.saveSettings();
+        });
+      text.inputEl.rows = 2;
+    });
+
+    // Flair filtering
+    new Setting(advancedContent).setName('Flair filter mode').addDropdown(dropdown =>
+      dropdown
+        .addOption('include', 'Include only listed')
+        .addOption('exclude', 'Exclude listed')
+        .setValue(filters.flairFilterMode)
+        .onChange(async (value: FilterMode) => {
+          filters.flairFilterMode = value;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Flair list').addTextArea(text => {
+      text
+        .setPlaceholder('Discussion\nQuestion')
+        .setValue(filters.flairList.join('\n'))
+        .onChange(async value => {
+          filters.flairList = value
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+          await this.saveSettings();
+        });
+      text.inputEl.rows = 2;
+    });
+
     // Author filtering
+    new Setting(advancedContent).setName('Author & Domain').setHeading();
+
+    new Setting(advancedContent).setName('Author filter mode').addDropdown(dropdown =>
+      dropdown
+        .addOption('include', 'Include only listed')
+        .addOption('exclude', 'Exclude listed')
+        .setValue(filters.authorFilterMode)
+        .onChange(async (value: FilterMode) => {
+          filters.authorFilterMode = value;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Authors').addTextArea(text => {
+      text
+        .setPlaceholder('username1\nusername2')
+        .setValue(filters.authorList.join('\n'))
+        .onChange(async value => {
+          filters.authorList = value
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+          await this.saveSettings();
+        });
+      text.inputEl.rows = 2;
+    });
+
+    new Setting(advancedContent).setName('Domain filter mode').addDropdown(dropdown =>
+      dropdown
+        .addOption('include', 'Include only listed')
+        .addOption('exclude', 'Exclude listed')
+        .setValue(filters.domainFilterMode)
+        .onChange(async (value: FilterMode) => {
+          filters.domainFilterMode = value;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Domains').addTextArea(text => {
+      text
+        .setPlaceholder('youtube.com\ngithub.com')
+        .setValue(filters.domainList.join('\n'))
+        .onChange(async value => {
+          filters.domainList = value
+            .split('\n')
+            .map(s => s.trim())
+            .filter(s => s.length > 0);
+          await this.saveSettings();
+        });
+      text.inputEl.rows = 2;
+    });
+
+    // Comment count
+    new Setting(advancedContent).setName('Min comment count').addText(text =>
+      text
+        .setPlaceholder('No minimum')
+        .setValue(filters.minCommentCount !== null ? String(filters.minCommentCount) : '')
+        .onChange(async value => {
+          const num = parseInt(value);
+          filters.minCommentCount = !isNaN(num) ? num : null;
+          await this.saveSettings();
+        })
+    );
+
+    new Setting(advancedContent).setName('Max comment count').addText(text =>
+      text
+        .setPlaceholder('No maximum')
+        .setValue(filters.maxCommentCount !== null ? String(filters.maxCommentCount) : '')
+        .onChange(async value => {
+          const num = parseInt(value);
+          filters.maxCommentCount = !isNaN(num) ? num : null;
+          await this.saveSettings();
+        })
+    );
+
+    // Reset button
+    new Setting(containerEl).addButton(button =>
+      button
+        .setButtonText('Reset All Filters')
+        .setWarning()
+        .onClick(async () => {
+          this.settings.filterSettings = { ...DEFAULT_FILTER_SETTINGS, enabled: true };
+          await this.saveSettings();
+          this.display();
+          new Notice('Filters reset');
+        })
+    );
+  }
+
+  // ============================================================================
+  // ADVANCED TAB
+  // ============================================================================
+
+  private displayAdvancedTab(containerEl: HTMLElement): void {
+    // Performance
+    new Setting(containerEl).setName('Performance & Reliability').setHeading();
+
     new Setting(containerEl)
-      .setName('Author filter mode')
-      .setDesc('Include only specific authors, or exclude specific authors')
-      .addDropdown(dropdown =>
-        dropdown
-          .addOption('include', 'Include only listed')
-          .addOption('exclude', 'Exclude listed')
-          .setValue(filters.authorFilterMode)
-          .onChange(async (value: FilterMode) => {
-            filters.authorFilterMode = value;
-            await this.saveSettings();
-          })
+      .setName('Enhanced mode')
+      .setDesc('Circuit breaker, request queuing, adaptive rate limiting')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.enableEnhancedMode).onChange(async value => {
+          this.settings.enableEnhancedMode = value;
+          await this.saveSettings();
+        })
       );
 
     new Setting(containerEl)
-      .setName('Author list')
-      .setDesc('Usernames to filter (one per line, without u/)')
-      .addTextArea(text => {
-        text
-          .setPlaceholder('username1\nusername2')
-          .setValue(filters.authorList.join('\n'))
-          .onChange(async value => {
-            filters.authorList = value
-              .split('\n')
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
-            await this.saveSettings();
-          });
-        text.inputEl.rows = 3;
-        text.inputEl.setCssProps({ width: '100%' });
-      });
+      .setName('Enable checkpointing')
+      .setDesc('Resume interrupted imports')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.enableCheckpointing).onChange(async value => {
+          this.settings.enableCheckpointing = value;
+          await this.saveSettings();
+        })
+      );
 
-    // Comment count filtering
     new Setting(containerEl)
-      .setName('Minimum comment count')
-      .setDesc('Only import posts with at least this many comments')
+      .setName('Max concurrent requests')
+      .setDesc('1-5, lower is safer')
       .addText(text =>
         text
-          .setPlaceholder('No minimum')
-          .setValue(filters.minCommentCount !== null ? String(filters.minCommentCount) : '')
+          .setPlaceholder('2')
+          .setValue(String(this.settings.maxConcurrentRequests))
           .onChange(async value => {
             const num = parseInt(value);
-            filters.minCommentCount = !isNaN(num) ? num : null;
-            await this.saveSettings();
+            if (!isNaN(num) && num >= 1 && num <= 5) {
+              this.settings.maxConcurrentRequests = num;
+              await this.saveSettings();
+            }
           })
       );
 
     new Setting(containerEl)
-      .setName('Maximum comment count')
-      .setDesc('Only import posts with at most this many comments')
+      .setName('Max retries')
+      .setDesc('1-10')
       .addText(text =>
         text
-          .setPlaceholder('No maximum')
-          .setValue(filters.maxCommentCount !== null ? String(filters.maxCommentCount) : '')
+          .setPlaceholder('3')
+          .setValue(String(this.settings.maxRetries))
           .onChange(async value => {
             const num = parseInt(value);
-            filters.maxCommentCount = !isNaN(num) ? num : null;
-            await this.saveSettings();
-          })
-      );
-
-    // Domain filtering
-    new Setting(containerEl)
-      .setName('Domain filter mode')
-      .setDesc('Include only links from specific domains, or exclude them')
-      .addDropdown(dropdown =>
-        dropdown
-          .addOption('include', 'Include only listed')
-          .addOption('exclude', 'Exclude listed')
-          .setValue(filters.domainFilterMode)
-          .onChange(async (value: FilterMode) => {
-            filters.domainFilterMode = value;
-            await this.saveSettings();
+            if (!isNaN(num) && num >= 1 && num <= 10) {
+              this.settings.maxRetries = num;
+              await this.saveSettings();
+            }
           })
       );
 
     new Setting(containerEl)
-      .setName('Domain list')
-      .setDesc('Domains to filter for link posts (one per line)')
-      .addTextArea(text => {
+      .setName('Offline queue')
+      .setDesc('Queue requests when offline')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.enableOfflineQueue).onChange(async value => {
+          this.settings.enableOfflineQueue = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Show performance stats')
+      .setDesc('Log metrics after import')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.showPerformanceStats).onChange(async value => {
+          this.settings.showPerformanceStats = value;
+          await this.saveSettings();
+        })
+      );
+
+    // Media Downloads (collapsible)
+    const mediaDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const mediaSummary = mediaDetails.createEl('summary');
+    setIcon(mediaSummary.createSpan(), 'image');
+    mediaSummary.createSpan({ text: 'Media Downloads' });
+
+    const mediaContent = mediaDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    new Setting(mediaContent)
+      .setName('Media folder')
+      .setDesc('Where to save downloaded media')
+      .addText(text =>
         text
-          .setPlaceholder('youtube.com\ntwitter.com\ngithub.com')
-          .setValue(filters.domainList.join('\n'))
+          .setPlaceholder('Attachments')
+          .setValue(this.settings.mediaFolder)
           .onChange(async value => {
-            filters.domainList = value
-              .split('\n')
-              .map(s => s.trim())
-              .filter(s => s.length > 0);
+            this.settings.mediaFolder = value || 'Attachments';
             await this.saveSettings();
-          });
-        text.inputEl.rows = 3;
-        text.inputEl.setCssProps({ width: '100%' });
-      });
+          })
+      );
+
+    new Setting(mediaContent).setName('Download images').addToggle(toggle =>
+      toggle.setValue(this.settings.downloadImages).onChange(async value => {
+        this.settings.downloadImages = value;
+        await this.saveSettings();
+      })
+    );
+
+    new Setting(mediaContent).setName('Download GIFs').addToggle(toggle =>
+      toggle.setValue(this.settings.downloadGifs).onChange(async value => {
+        this.settings.downloadGifs = value;
+        await this.saveSettings();
+      })
+    );
+
+    new Setting(mediaContent).setName('Download videos').addToggle(toggle =>
+      toggle.setValue(this.settings.downloadVideos).onChange(async value => {
+        this.settings.downloadVideos = value;
+        await this.saveSettings();
+      })
+    );
+
+    // Templater Integration (collapsible)
+    const templaterDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const templaterSummary = templaterDetails.createEl('summary');
+    setIcon(templaterSummary.createSpan(), 'file-code');
+    templaterSummary.createSpan({ text: 'Templater Integration' });
+
+    const templaterContent = templaterDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    new Setting(templaterContent)
+      .setName('Use Templater')
+      .setDesc('Custom templates for output')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.useTemplater).onChange(async value => {
+          this.settings.useTemplater = value;
+          await this.saveSettings();
+          this.display();
+        })
+      );
+
+    if (this.settings.useTemplater) {
+      new Setting(templaterContent).setName('Post template path').addText(text =>
+        text
+          .setPlaceholder('templates/reddit-post.md')
+          .setValue(this.settings.postTemplatePath)
+          .onChange(async value => {
+            this.settings.postTemplatePath = value;
+            await this.saveSettings();
+          })
+      );
+
+      new Setting(templaterContent).setName('Comment template path').addText(text =>
+        text
+          .setPlaceholder('templates/reddit-comment.md')
+          .setValue(this.settings.commentTemplatePath)
+          .onChange(async value => {
+            this.settings.commentTemplatePath = value;
+            await this.saveSettings();
+          })
+      );
+    }
+
+    // Comment Context (collapsible)
+    const contextDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const contextSummary = contextDetails.createEl('summary');
+    setIcon(contextSummary.createSpan(), 'messages-square');
+    contextSummary.createSpan({ text: 'Comment Context' });
+
+    const contextContent = contextDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    const contextInfo = contextContent.createDiv({ cls: 'settings-info-box compact' });
+    contextInfo.createSpan({
+      text: 'Fetch parent comments and replies. Requires additional API calls.',
+    });
+
+    new Setting(contextContent).setName('Fetch parent context').addToggle(toggle =>
+      toggle.setValue(this.settings.fetchCommentContext).onChange(async value => {
+        this.settings.fetchCommentContext = value;
+        await this.saveSettings();
+        this.display();
+      })
+    );
+
+    if (this.settings.fetchCommentContext) {
+      new Setting(contextContent)
+        .setName('Context depth')
+        .setDesc(`1-${COMMENT_CONTEXT_MAX}`)
+        .addSlider(slider =>
+          slider
+            .setLimits(1, COMMENT_CONTEXT_MAX, 1)
+            .setValue(this.settings.commentContextDepth)
+            .setDynamicTooltip()
+            .onChange(async value => {
+              this.settings.commentContextDepth = value;
+              await this.saveSettings();
+            })
+        );
+    }
+
+    new Setting(contextContent).setName('Include replies').addToggle(toggle =>
+      toggle.setValue(this.settings.includeCommentReplies).onChange(async value => {
+        this.settings.includeCommentReplies = value;
+        await this.saveSettings();
+        this.display();
+      })
+    );
+
+    if (this.settings.includeCommentReplies) {
+      new Setting(contextContent)
+        .setName('Reply depth')
+        .setDesc(`1-${COMMENT_MAX_DEPTH}`)
+        .addSlider(slider =>
+          slider
+            .setLimits(1, COMMENT_MAX_DEPTH, 1)
+            .setValue(this.settings.commentReplyDepth)
+            .setDynamicTooltip()
+            .onChange(async value => {
+              this.settings.commentReplyDepth = value;
+              await this.saveSettings();
+            })
+        );
+    }
+
+    // Link Preservation (collapsible)
+    const linkDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const linkSummary = linkDetails.createEl('summary');
+    setIcon(linkSummary.createSpan(), 'link');
+    linkSummary.createSpan({ text: 'Link Preservation' });
+
+    const linkContent = linkDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    new Setting(linkContent)
+      .setName('Enable link preservation')
+      .setDesc('Integrate with Internet Archive')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.enableLinkPreservation).onChange(async value => {
+          this.settings.enableLinkPreservation = value;
+          await this.saveSettings();
+          this.display();
+        })
+      );
+
+    if (this.settings.enableLinkPreservation) {
+      new Setting(linkContent).setName('Extract external links').addToggle(toggle =>
+        toggle.setValue(this.settings.extractExternalLinks).onChange(async value => {
+          this.settings.extractExternalLinks = value;
+          await this.saveSettings();
+        })
+      );
+
+      new Setting(linkContent)
+        .setName('Check Wayback archive')
+        .setDesc('Adds latency')
+        .addToggle(toggle =>
+          toggle.setValue(this.settings.checkWaybackArchive).onChange(async value => {
+            this.settings.checkWaybackArchive = value;
+            await this.saveSettings();
+          })
+        );
+
+      new Setting(linkContent).setName('Include archive links').addToggle(toggle =>
+        toggle.setValue(this.settings.includeArchiveLinks).onChange(async value => {
+          this.settings.includeArchiveLinks = value;
+          await this.saveSettings();
+        })
+      );
+    }
   }
 }

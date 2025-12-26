@@ -1,5 +1,8 @@
 export type UnsaveMode = 'off' | 'prompt' | 'auto';
 
+/** Settings tab for organized settings UI */
+export type SettingsTab = 'setup' | 'import' | 'filters' | 'advanced';
+
 /** OAuth app type determines authentication flow */
 export type OAuthAppType = 'script' | 'installed';
 
@@ -92,6 +95,8 @@ export interface RedditSavedSettings {
   checkWaybackArchive: boolean; // Check if links are already archived
   includeArchiveLinks: boolean; // Include Wayback Machine links in output
   extractExternalLinks: boolean; // Extract and list external links from content
+  // UI state
+  activeSettingsTab: SettingsTab; // Currently selected settings tab
 }
 
 export type PostType = 'text' | 'link' | 'image' | 'video';

@@ -1,4 +1,4 @@
-import { RedditSavedSettings, FilterSettings, PostType } from './types';
+import { RedditSavedSettings, FilterSettings, PostType, SettingsTab } from './types';
 
 // OAuth Configuration
 export const DEFAULT_REDIRECT_PORT = 9638;
@@ -229,6 +229,8 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   checkWaybackArchive: false,
   includeArchiveLinks: true,
   extractExternalLinks: true,
+  // UI state defaults
+  activeSettingsTab: 'setup',
 };
 
 // Comment export defaults
