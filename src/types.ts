@@ -13,6 +13,26 @@ export interface PendingOAuthState {
   expiresAt: number;
 }
 
+/** Credential backup for safe OAuth testing */
+export interface CredentialBackup {
+  /** Backup format version for future compatibility */
+  version: 1;
+  /** When the backup was created (ISO timestamp) */
+  createdAt: string;
+  /** Reddit app client ID */
+  clientId: string;
+  /** Reddit app client secret (empty for installed apps) */
+  clientSecret: string;
+  /** OAuth access token */
+  accessToken: string;
+  /** OAuth refresh token */
+  refreshToken: string;
+  /** Token expiration timestamp */
+  tokenExpiry: number;
+  /** Authenticated Reddit username */
+  username: string;
+}
+
 export interface RedditSavedSettings {
   clientId: string;
   clientSecret: string;
