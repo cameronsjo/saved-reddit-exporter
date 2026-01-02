@@ -93,7 +93,7 @@ export class RedditAuth {
     }
 
     if (!this.settings.clientId) {
-      new Notice('Please enter your Client ID in settings first');
+      new Notice('Please enter your client ID in settings first');
       return;
     }
 

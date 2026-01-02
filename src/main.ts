@@ -134,7 +134,7 @@ export default class RedditSavedPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-sync-manager',
-      name: 'Open Sync Manager',
+      name: 'Open sync manager',
       callback: async () => {
         await this.openSyncManager();
       },
@@ -1033,7 +1033,7 @@ class ExportStatsModal extends Modal {
     const { contentEl } = this;
     contentEl.empty();
 
-    new Setting(contentEl).setName('📊 Export statistics').setHeading();
+    new Setting(contentEl).setName('Export statistics').setHeading();
 
     contentEl.createEl('p', { text: `Total items in vault: ${this.stats.totalItems}` });
 

@@ -116,7 +116,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     const mobileOption = optionsGrid.createDiv({ cls: 'settings-platform-option' });
     const mobileLabel = mobileOption.createEl('div', { cls: 'settings-platform-label' });
     setIcon(mobileLabel.createSpan(), 'smartphone');
-    mobileLabel.createEl('strong', { text: 'Mobile / All Platforms' });
+    mobileLabel.createEl('strong', { text: 'Mobile / all platforms' });
     const mobileDesc = mobileOption.createEl('div', { cls: 'settings-platform-desc' });
     mobileDesc.innerHTML = `"installed app" &bull; No secret needed<br><code>${OBSIDIAN_REDIRECT_URI}</code>`;
 
@@ -124,7 +124,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     const desktopOption = optionsGrid.createDiv({ cls: 'settings-platform-option' });
     const desktopLabel = desktopOption.createEl('div', { cls: 'settings-platform-label' });
     setIcon(desktopLabel.createSpan(), 'monitor');
-    desktopLabel.createEl('strong', { text: 'Desktop Only' });
+    desktopLabel.createEl('strong', { text: 'Desktop only' });
     const desktopDesc = desktopOption.createEl('div', { cls: 'settings-platform-desc' });
     desktopDesc.innerHTML = `"script" app &bull; Secret required<br><code>http://localhost:${this.settings.oauthRedirectPort}</code>`;
 
@@ -192,14 +192,14 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     this.displayCredentialBackup(containerEl);
 
     // Save location
-    new Setting(containerEl).setName('Save Location').setHeading();
+    new Setting(containerEl).setName('Save location').setHeading();
 
     new Setting(containerEl)
       .setName('Save folder')
       .setDesc('Where Reddit posts will be saved in your vault')
       .addText(text =>
         text
-          .setPlaceholder('Reddit Saved')
+          .setPlaceholder('Reddit saved')
           .setValue(this.settings.saveLocation)
           .onChange(async value => {
             this.settings.saveLocation = value;
@@ -233,7 +233,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     const details = containerEl.createEl('details', { cls: 'settings-collapsible' });
     const summary = details.createEl('summary');
     setIcon(summary.createSpan(), 'shield');
-    summary.createSpan({ text: 'Credential Backup' });
+    summary.createSpan({ text: 'Credential backup' });
 
     const content = details.createDiv({ cls: 'settings-collapsible-content' });
     content.createEl('p', {
@@ -243,7 +243,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
     const buttonContainer = content.createDiv({ cls: 'settings-button-row' });
 
-    const exportBtn = buttonContainer.createEl('button', { text: 'Export to Clipboard' });
+    const exportBtn = buttonContainer.createEl('button', { text: 'Export to clipboard' });
     exportBtn.addEventListener('click', async () => {
       const backup: CredentialBackup = {
         version: 1,
@@ -259,7 +259,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       new Notice('Credentials copied to clipboard!');
     });
 
-    const importBtn = buttonContainer.createEl('button', { text: 'Import from Clipboard' });
+    const importBtn = buttonContainer.createEl('button', { text: 'Import from clipboard' });
     importBtn.addEventListener('click', async () => {
       try {
         const text = await navigator.clipboard.readText();
@@ -291,7 +291,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
   // ============================================================================
 
   private displayImportTab(containerEl: HTMLElement): void {
-    new Setting(containerEl).setName('Content Types').setHeading();
+    new Setting(containerEl).setName('Content types').setHeading();
 
     const contentInfo = containerEl.createDiv({ cls: 'settings-info-box compact' });
     contentInfo.createSpan({ text: 'Select which Reddit content to import.' });
@@ -347,7 +347,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     // Post Processing
-    new Setting(containerEl).setName('Post Processing').setHeading();
+    new Setting(containerEl).setName('Post processing').setHeading();
 
     new Setting(containerEl)
       .setName('Fetch limit')
@@ -380,9 +380,9 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       .setDesc('Remove from Reddit after importing')
       .addDropdown(dropdown =>
         dropdown
-          .addOption('off', 'Off - Keep saved')
-          .addOption('prompt', 'Prompt - Choose which')
-          .addOption('auto', 'Auto - Unsave all')
+          .addOption('off', 'Off - keep saved')
+          .addOption('prompt', 'Prompt - choose which')
+          .addOption('auto', 'Auto - unsave all')
           .setValue(this.settings.unsaveMode)
           .onChange(async value => {
             this.settings.unsaveMode = value as UnsaveMode;
@@ -516,7 +516,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     const filters = this.settings.filterSettings;
 
     // Quick presets
-    new Setting(containerEl).setName('Quick Presets').setHeading();
+    new Setting(containerEl).setName('Quick presets').setHeading();
 
     const presetContainer = containerEl.createDiv({ cls: 'settings-preset-row' });
     for (const [, preset] of Object.entries(FILTER_PRESETS)) {
@@ -534,7 +534,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     }
 
     // Enable filtering
-    new Setting(containerEl).setName('Basic Filters').setHeading();
+    new Setting(containerEl).setName('Basic filters').setHeading();
 
     new Setting(containerEl)
       .setName('Enable filtering')
@@ -659,12 +659,12 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     const advancedDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
     const advancedSummary = advancedDetails.createEl('summary');
     setIcon(advancedSummary.createSpan(), 'sliders-horizontal');
-    advancedSummary.createSpan({ text: 'Advanced Filters' });
+    advancedSummary.createSpan({ text: 'Advanced filters' });
 
     const advancedContent = advancedDetails.createDiv({ cls: 'settings-collapsible-content' });
 
     // Subreddit filtering
-    new Setting(advancedContent).setName('Subreddit Filtering').setHeading();
+    new Setting(advancedContent).setName('Subreddit filtering').setHeading();
 
     new Setting(advancedContent).setName('Mode').addDropdown(dropdown =>
       dropdown
@@ -715,7 +715,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     }
 
     // Score filtering
-    new Setting(advancedContent).setName('Score Filtering').setHeading();
+    new Setting(advancedContent).setName('Score filtering').setHeading();
 
     new Setting(advancedContent).setName('Minimum score').addText(text =>
       text
@@ -758,7 +758,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       );
 
     // Content keywords
-    new Setting(advancedContent).setName('Content Filtering').setHeading();
+    new Setting(advancedContent).setName('Content filtering').setHeading();
 
     new Setting(advancedContent).setName('Title keyword mode').addDropdown(dropdown =>
       dropdown
@@ -837,7 +837,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     });
 
     // Author filtering
-    new Setting(advancedContent).setName('Author & Domain').setHeading();
+    new Setting(advancedContent).setName('Author & domain').setHeading();
 
     new Setting(advancedContent).setName('Author filter mode').addDropdown(dropdown =>
       dropdown
@@ -915,7 +915,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     // Reset button
     new Setting(containerEl).addButton(button =>
       button
-        .setButtonText('Reset All Filters')
+        .setButtonText('Reset all filters')
         .setWarning()
         .onClick(async () => {
           this.settings.filterSettings = { ...DEFAULT_FILTER_SETTINGS, enabled: true };
@@ -932,7 +932,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
 
   private displayAdvancedTab(containerEl: HTMLElement): void {
     // Performance
-    new Setting(containerEl).setName('Performance & Reliability').setHeading();
+    new Setting(containerEl).setName('Performance & reliability').setHeading();
 
     new Setting(containerEl)
       .setName('Enhanced mode')

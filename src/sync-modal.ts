@@ -137,7 +137,7 @@ export class SyncManagerModal extends Modal {
 
     new Setting(header).setName('Sync manager').setHeading();
 
-    const refreshBtn = header.createEl('button', { text: '↻ Refresh' });
+    const refreshBtn = header.createEl('button', { text: 'Refresh' });
     refreshBtn.onclick = () => void this.handleRefresh();
   }
 
@@ -458,7 +458,7 @@ export class SyncManagerModal extends Modal {
     // Orphan info
     if (syncItem.status === 'orphaned') {
       const orphanEl = content.createEl('div', { cls: 'sync-orphan-info' });
-      orphanEl.textContent = '⊘ No longer on Reddit - file preserved in vault';
+      orphanEl.textContent = 'No longer on Reddit - file preserved in vault';
     }
 
     // Vault path (for imported items)
