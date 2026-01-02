@@ -65,6 +65,11 @@ jobs:
             echo "Using current version (no release PR found): $NEXT_VERSION"
           fi
 
+          # Extract base version (X.Y.Z) - strip any prerelease/build metadata
+          # This handles cases where release-please PR already has beta/rc versions
+          BASE_VERSION=$(echo "$NEXT_VERSION" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+          echo "Base version: $BASE_VERSION"
+
           # Generate beta version
           SHORT_SHA=$(git rev-parse --short HEAD)
 
@@ -76,10 +81,10 @@ jobs:
             COMMIT_COUNT=$(git rev-list --count HEAD)
           fi
 
-          BETA_VERSION="${NEXT_VERSION}-beta.${COMMIT_COUNT}+${SHORT_SHA}"
+          BETA_VERSION="${BASE_VERSION}-beta.${COMMIT_COUNT}+${SHORT_SHA}"
 
           echo "version=$BETA_VERSION" >> $GITHUB_OUTPUT
-          echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+          echo "next_version=$BASE_VERSION" >> $GITHUB_OUTPUT
           echo "Generated beta version: $BETA_VERSION"
 
   build-and-release:
