@@ -1220,9 +1220,34 @@
 		gap: 1em;
 	}
 
+	/* Sync tabs - proper tab styling on mobile */
 	.sync-tab-bar {
-		padding: 0.5em 1em;
+		padding: 4px;
+		margin: 0.5em 1em;
 		overflow-x: auto;
+		background: var(--background-secondary);
+		border-radius: 8px;
+		border-bottom: none;
+		gap: 0;
+	}
+
+	.sync-tab-bar button {
+		padding: 0.5em 0.7em;
+		font-size: 0.8em;
+		border-radius: 6px;
+		flex: 1;
+		background: transparent;
+		color: var(--text-muted);
+	}
+
+	.sync-tab-bar button:hover {
+		background: var(--background-modifier-hover);
+	}
+
+	.sync-tab-bar button.active {
+		background: var(--background-primary);
+		color: var(--text-normal);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
 	.sync-filter-bar {
@@ -1261,9 +1286,11 @@
 		font-size: 0.8em;
 	}
 
+	/* Action bar - clean button row on mobile */
 	.sync-action-bar {
 		padding: 0.75em 1em;
 		gap: 0.5em;
+		flex-wrap: wrap;
 	}
 
 	.sync-action-bar .keyboard-hints {
@@ -1271,8 +1298,11 @@
 	}
 
 	.sync-action-bar button {
-		padding: 0.5em 0.75em;
-		font-size: 0.85em;
+		padding: 0.6em 0.8em;
+		font-size: 0.8em;
+		flex: 1 1 auto;
+		min-width: fit-content;
+		border-radius: 8px;
 	}
 
 	/* Filter presets - smaller buttons on mobile */
@@ -1285,17 +1315,37 @@
 		font-size: var(--font-ui-smaller);
 	}
 
-	/* Settings tabs - scrollable on mobile */
+	/* Settings tabs - proper tab styling on mobile */
 	.settings-tab-bar {
 		overflow-x: auto;
-		padding: 0.5em 0;
-		gap: 0.25em;
+		padding: 0;
+		gap: 0;
+		margin-bottom: 0;
+		border-bottom: none;
+		background: var(--background-secondary);
+		border-radius: 8px;
+		padding: 4px;
 	}
 
 	.settings-tab-btn {
-		padding: 0.5em 0.75em;
-		font-size: 0.85em;
+		padding: 0.6em 0.9em;
+		font-size: 0.8em;
 		white-space: nowrap;
+		border-radius: 6px;
+		flex: 1;
+		justify-content: center;
+		background: transparent;
+		color: var(--text-muted);
+	}
+
+	.settings-tab-btn:hover {
+		background: var(--background-modifier-hover);
+	}
+
+	.settings-tab-btn.active {
+		background: var(--background-primary);
+		color: var(--text-normal);
+		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
 	/* Platform grid stacks on mobile */
