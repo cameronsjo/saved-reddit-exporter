@@ -1,4 +1,4 @@
-import { App, Menu, Modal, Notice, Platform, Setting } from 'obsidian';
+import { App, Menu, Modal, Notice, Platform, setIcon, Setting } from 'obsidian';
 import { SyncManager } from './sync-manager';
 import { RedditApiClient } from './api-client';
 import { RedditItem, RedditSavedSettings, SyncItem, SyncStatus } from './types';
@@ -161,7 +161,7 @@ export class SyncManagerModal extends Modal {
       cls: 'sync-header-btn',
       attr: { 'aria-label': 'Refresh from Reddit' },
     });
-    refreshBtn.innerHTML = '↻';
+    setIcon(refreshBtn, 'refresh-cw');
     refreshBtn.title = 'Refresh from Reddit';
     refreshBtn.onclick = () => void this.handleRefresh();
 
@@ -169,7 +169,7 @@ export class SyncManagerModal extends Modal {
       cls: 'sync-header-btn sync-close-btn',
       attr: { 'aria-label': 'Close' },
     });
-    closeBtn.innerHTML = '×';
+    setIcon(closeBtn, 'x');
     closeBtn.title = 'Close';
     closeBtn.onclick = () => this.close();
 
@@ -205,11 +205,11 @@ export class SyncManagerModal extends Modal {
     const tabBar = contentEl.createDiv({ cls: 'sync-tab-bar' });
 
     const tabs: Array<{ id: SyncTab; label: string; icon: string }> = [
-      { id: 'all', label: 'All', icon: '◉' },
-      { id: 'pending', label: 'Pending', icon: '○' },
-      { id: 'imported', label: 'Imported', icon: '✓' },
-      { id: 'filtered', label: 'Filtered', icon: '⚠' },
-      { id: 'orphaned', label: 'Orphaned', icon: '⊘' },
+      { id: 'all', label: 'All', icon: 'list' },
+      { id: 'pending', label: 'Pending', icon: 'circle' },
+      { id: 'imported', label: 'Imported', icon: 'check-circle' },
+      { id: 'filtered', label: 'Filtered', icon: 'filter' },
+      { id: 'orphaned', label: 'Orphaned', icon: 'file-x' },
     ];
 
     for (const tab of tabs) {
@@ -221,7 +221,8 @@ export class SyncManagerModal extends Modal {
       btn.dataset.tab = tab.id;
 
       // Icon + label + count
-      const iconSpan = btn.createEl('span', { cls: 'sync-tab-icon', text: tab.icon });
+      const iconSpan = btn.createEl('span', { cls: 'sync-tab-icon' });
+      setIcon(iconSpan, tab.icon);
       iconSpan.style.color = this.getStatusColor(
         tab.id === 'all' ? 'pending' : (tab.id as SyncStatus)
       );
@@ -370,7 +371,8 @@ export class SyncManagerModal extends Modal {
     const empty = this.listContainer.createDiv({ cls: 'sync-empty-state' });
 
     if (this.searchQuery) {
-      empty.createEl('div', { cls: 'sync-empty-icon', text: '🔍' });
+      const iconEl = empty.createDiv({ cls: 'sync-empty-icon' });
+      setIcon(iconEl, 'search');
       empty.createEl('div', { cls: 'sync-empty-title', text: 'No matches found' });
       empty.createEl('div', {
         cls: 'sync-empty-desc',
@@ -390,34 +392,35 @@ export class SyncManagerModal extends Modal {
 
     const emptyStates: Record<SyncTab, { icon: string; title: string; desc: string }> = {
       all: {
-        icon: '📭',
+        icon: 'inbox',
         title: 'No saved items',
         desc: 'Save some posts or comments on Reddit to get started',
       },
       pending: {
-        icon: '✨',
+        icon: 'check-circle-2',
         title: 'All caught up!',
         desc: 'No new items to import',
       },
       imported: {
-        icon: '📁',
+        icon: 'folder-open',
         title: 'Nothing imported yet',
         desc: 'Switch to the Pending tab to import items',
       },
       filtered: {
-        icon: '⚡',
+        icon: 'filter-x',
         title: 'No filtered items',
         desc: 'All your saved items pass the current filters',
       },
       orphaned: {
-        icon: '🎉',
+        icon: 'party-popper',
         title: 'No orphaned files',
         desc: 'All vault files have matching Reddit items',
       },
     };
 
     const state = emptyStates[this.activeTab];
-    empty.createEl('div', { cls: 'sync-empty-icon', text: state.icon });
+    const iconEl = empty.createDiv({ cls: 'sync-empty-icon' });
+    setIcon(iconEl, state.icon);
     empty.createEl('div', { cls: 'sync-empty-title', text: state.title });
     empty.createEl('div', { cls: 'sync-empty-desc', text: state.desc });
   }
@@ -525,9 +528,9 @@ export class SyncManagerModal extends Modal {
     // Type indicator (post/comment icon)
     const typeIcon = titleRow.createEl('span', {
       cls: 'sync-type-icon',
-      text: isComment ? '💬' : '📄',
       attr: { title: isComment ? 'Comment' : 'Post' },
     });
+    setIcon(typeIcon, isComment ? 'message-square' : 'file-text');
 
     const titleEl = titleRow.createEl('span', { cls: 'sync-item-title' });
     titleEl.textContent = this.syncManager.getDisplayTitle(syncItem);
