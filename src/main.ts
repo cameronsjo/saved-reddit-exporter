@@ -846,7 +846,7 @@ export default class RedditSavedPlugin extends Plugin {
       syncManager.scanVault();
       syncManager.computeSyncState(savedItems);
 
-      // Open the sync modal with callbacks for import/reprocess/delete actions
+      // Open the sync modal with callbacks for import/reprocess actions
       new SyncManagerModal(this.app, syncManager, this.apiClient, this.settings, {
         onImport: async (items: RedditItem[]) => {
           const result = await this.createMarkdownFiles(items);
@@ -855,11 +855,11 @@ export default class RedditSavedPlugin extends Plugin {
         onReprocess: async (syncItems: SyncItem[]) => {
           return await this.reprocessItems(syncItems);
         },
-        onDeleteFile: async (path: string) => {
-          const file = this.app.vault.getAbstractFileByPath(path);
-          if (file) {
-            await this.app.vault.trash(file, true);
-          }
+        onRefresh: async () => {
+          return await this.apiClient.fetchAllSaved();
+        },
+        onSaveSettings: async () => {
+          await this.saveSettings();
         },
       }).open();
     } catch (error) {
