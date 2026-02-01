@@ -97,6 +97,18 @@ export interface RedditSavedSettings {
   extractExternalLinks: boolean; // Extract and list external links from content
   // UI state
   activeSettingsTab: SettingsTab; // Currently selected settings tab
+  // Sync cache for instant Sync Manager open
+  syncCache?: SyncCache;
+}
+
+/**
+ * Cached sync state for instant Sync Manager open
+ */
+export interface SyncCache {
+  /** Cached Reddit items from last fetch */
+  items: RedditItem[];
+  /** When the cache was last updated (ISO timestamp) */
+  lastUpdated: string;
 }
 
 export type PostType = 'text' | 'link' | 'image' | 'video';
