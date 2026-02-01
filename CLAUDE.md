@@ -4,6 +4,16 @@
 
 Obsidian plugin that exports saved Reddit posts and comments as Markdown files.
 
+## User Interface
+
+The **Sync Manager** is the primary interface for importing Reddit content:
+
+- **Ribbon icon** and **"Fetch saved posts"** command both open the Sync Manager
+- Shows cached data instantly, with manual "Refresh from Reddit" button
+- Displays sync status: Imported, Pending, Filtered, Orphaned items
+- Supports bulk import, reprocess, and unsave operations
+- Shows checkpoint banner if a previous import was interrupted
+
 ## Release Process
 
 This project uses a three-stage release pipeline: **Beta → RC → Stable**
