@@ -12,6 +12,9 @@ interface SyncModalCallbacks {
   onReprocess: (items: SyncItem[]) => Promise<{ success: number; failed: number }>;
   onRefresh: () => Promise<RedditItem[]>;
   onSaveSettings: () => Promise<void>;
+  onResumeCheckpoint?: () => Promise<void>;
+  onDiscardCheckpoint?: () => Promise<void>;
+  checkpointInfo?: { processed: number; total: number };
 }
 
 /**
@@ -35,6 +38,9 @@ export class SyncManagerModal extends Modal {
   private hasLoadedInitially = false;
   private onRefresh: () => Promise<RedditItem[]>;
   private onSaveSettings: () => Promise<void>;
+  private checkpointInfo?: { processed: number; total: number };
+  private onResumeCheckpoint: () => Promise<void>;
+  private onDiscardCheckpoint: () => Promise<void>;
 
   // UI references
   private listContainer: HTMLElement;
@@ -61,6 +67,9 @@ export class SyncManagerModal extends Modal {
     this.callbacks = callbacks;
     this.onRefresh = callbacks.onRefresh;
     this.onSaveSettings = callbacks.onSaveSettings;
+    this.checkpointInfo = callbacks.checkpointInfo;
+    this.onResumeCheckpoint = callbacks.onResumeCheckpoint || (async () => {});
+    this.onDiscardCheckpoint = callbacks.onDiscardCheckpoint || (async () => {});
   }
 
   onOpen() {
@@ -131,6 +140,7 @@ export class SyncManagerModal extends Modal {
     contentEl.empty();
 
     this.buildHeader();
+    this.buildCheckpointBanner();
     this.buildStatsBar();
     this.buildTabBar();
     this.buildControls();
@@ -164,6 +174,39 @@ export class SyncManagerModal extends Modal {
       refreshBtn.addClass('mod-cta');
     }
     refreshBtn.onclick = () => void this.handleRefreshFromReddit();
+  }
+
+  private buildCheckpointBanner() {
+    if (!this.checkpointInfo) return;
+
+    const { contentEl } = this;
+    const banner = contentEl.createDiv({ cls: 'sync-checkpoint-banner' });
+
+    const titleEl = banner.createEl('p', { cls: 'banner-title' });
+    titleEl.textContent = '⚠️ Interrupted import detected';
+
+    banner.createEl('p', {
+      text: `${this.checkpointInfo.processed} of ${this.checkpointInfo.total} items imported before interruption`,
+    });
+
+    const actions = banner.createDiv({ cls: 'sync-checkpoint-actions' });
+
+    const resumeBtn = actions.createEl('button', {
+      text: 'Resume Import',
+      cls: 'mod-cta',
+    });
+    resumeBtn.onclick = async () => {
+      await this.onResumeCheckpoint();
+      this.checkpointInfo = undefined;
+      this.buildUI();
+    };
+
+    const discardBtn = actions.createEl('button', { text: 'Discard & Start Fresh' });
+    discardBtn.onclick = async () => {
+      await this.onDiscardCheckpoint();
+      this.checkpointInfo = undefined;
+      this.buildUI();
+    };
   }
 
   private buildStatsBar() {
