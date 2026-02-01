@@ -41,6 +41,65 @@ export class SyncManager {
   }
 
   /**
+   * Check if we have cached Reddit items
+   */
+  hasCachedItems(): boolean {
+    return !!this.settings.syncCache?.items?.length;
+  }
+
+  /**
+   * Get the last update timestamp for display
+   */
+  getLastUpdatedDisplay(): string {
+    if (!this.settings.syncCache?.lastUpdated) {
+      return '';
+    }
+
+    const updated = new Date(this.settings.syncCache.lastUpdated);
+    const now = new Date();
+    const diffMs = now.getTime() - updated.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins === 1) return '1 minute ago';
+    if (diffMins < 60) return `${diffMins} minutes ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours === 1) return '1 hour ago';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'yesterday';
+    return `${diffDays} days ago`;
+  }
+
+  /**
+   * Get cached items for display
+   */
+  getCachedItems(): RedditItem[] {
+    return this.settings.syncCache?.items || [];
+  }
+
+  /**
+   * Update the cache with fresh Reddit items
+   */
+  updateCache(items: RedditItem[], saveSettings: () => Promise<void>): void {
+    this.settings.syncCache = {
+      items,
+      lastUpdated: new Date().toISOString(),
+    };
+    void saveSettings();
+  }
+
+  /**
+   * Clear the cache
+   */
+  clearCache(saveSettings: () => Promise<void>): void {
+    this.settings.syncCache = undefined;
+    void saveSettings();
+  }
+
+  /**
    * Scan the vault for existing Reddit items
    * Extracts frontmatter metadata for display and matching
    * Supports both single `id` and multi-ID `reddit_ids` array in frontmatter
