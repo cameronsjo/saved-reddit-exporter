@@ -6,7 +6,6 @@ import {
   RedditItemData,
   ContentOrigin,
   RedditComment,
-  FilterBreakdown,
 } from './types';
 import {
   DEFAULT_SETTINGS,
@@ -27,7 +26,7 @@ import { UnsaveSelectionModal, AutoUnsaveConfirmModal } from './unsave-modal';
 import { SyncManagerModal } from './sync-modal';
 import { SyncManager } from './sync-manager';
 import { Exporter } from './exporter';
-import { sanitizeFileName, isPathSafe, sanitizeSubredditName } from './utils/file-sanitizer';
+import { sanitizeFileName, isPathSafe } from './utils/file-sanitizer';
 import {
   buildTemplateVariables,
   generateFolderPath,
@@ -70,9 +69,9 @@ export default class RedditSavedPlugin extends Plugin {
       this.apiClient.enableEnhancedFeatures(this.importStateManager);
     }
 
-    // Add ribbon icon
-    this.addRibbonIcon('download', 'Fetch Reddit saved posts', async () => {
-      await this.fetchSavedPosts();
+    // Add ribbon icon - opens Sync Manager
+    this.addRibbonIcon('download', 'Open Reddit sync manager', async () => {
+      await this.openSyncManager();
     });
 
     // Add commands
@@ -80,7 +79,7 @@ export default class RedditSavedPlugin extends Plugin {
       id: 'fetch-reddit-saved',
       name: 'Fetch saved posts from Reddit',
       callback: async () => {
-        await this.fetchSavedPosts();
+        await this.openSyncManager();
       },
     });
 
@@ -101,14 +100,6 @@ export default class RedditSavedPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: 'resume-reddit-import',
-      name: 'Resume interrupted import',
-      callback: async () => {
-        await this.resumeImport();
-      },
-    });
-
-    this.addCommand({
       id: 'cancel-reddit-import',
       name: 'Cancel current import',
       callback: () => {
@@ -121,14 +112,6 @@ export default class RedditSavedPlugin extends Plugin {
       name: 'Show import status and performance',
       callback: () => {
         this.showImportStatus();
-      },
-    });
-
-    this.addCommand({
-      id: 'preview-reddit-import',
-      name: 'Preview import (dry run)',
-      callback: async () => {
-        await this.previewImport();
       },
     });
 
@@ -776,47 +759,6 @@ export default class RedditSavedPlugin extends Plugin {
     };
   }
 
-  async previewImport() {
-    if (!this.auth.isAuthenticated()) {
-      new Notice(MSG_AUTH_REQUIRED);
-      await this.auth.initiateOAuth();
-      return;
-    }
-
-    try {
-      await this.auth.ensureValidToken();
-
-      new Notice('Fetching posts for preview...');
-
-      const savedItems = await this.apiClient.fetchAllSaved();
-
-      if (savedItems.length === 0) {
-        new Notice(MSG_NO_POSTS_FOUND);
-        return;
-      }
-
-      // Scan for existing Reddit IDs
-      const existingIds = this.settings.skipExisting
-        ? this.scanExistingRedditIds()
-        : new Set<string>();
-
-      // Use filter engine to preview
-      const filterEngine = new FilterEngine(this.settings.filterSettings);
-      const preview = filterEngine.previewImport(
-        savedItems,
-        existingIds,
-        this.settings.skipExisting
-      );
-
-      // Show preview modal
-      new PreviewModal(this.app, preview, this.settings.filterSettings.enabled).open();
-    } catch (error) {
-      console.error('Error during preview:', error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      new Notice(`Error: ${errorMessage}`);
-    }
-  }
-
   /**
    * Open the Sync Manager modal for comprehensive vault/Reddit synchronization
    *
@@ -825,6 +767,7 @@ export default class RedditSavedPlugin extends Plugin {
    * - Status categorization: imported, pending, filtered, orphaned
    * - Bulk import/unsave/reprocess operations
    * - Filter override capability for individual items
+   * - Checkpoint resume/discard for interrupted imports
    */
   async openSyncManager(): Promise<void> {
     if (!this.auth.isAuthenticated()) {
@@ -836,17 +779,29 @@ export default class RedditSavedPlugin extends Plugin {
     try {
       await this.auth.ensureValidToken();
 
-      new Notice('Loading sync status...');
-
-      // Fetch all saved items from Reddit
-      const savedItems = await this.apiClient.fetchAllSaved();
-
-      // Initialize sync manager and compute state
+      // Initialize sync manager and scan vault
       const syncManager = new SyncManager(this.app, this.settings);
       syncManager.scanVault();
-      syncManager.computeSyncState(savedItems);
 
-      // Open the sync modal with callbacks for import/reprocess actions
+      // Check for checkpoint/resumable session
+      let checkpointInfo: { processed: number; total: number } | undefined;
+      if (this.settings.enableCheckpointing) {
+        const checkpoint = await this.importStateManager.loadCheckpoint();
+        if (checkpoint && !checkpoint.completed && !checkpoint.cancelled) {
+          checkpointInfo = {
+            processed: checkpoint.importedCount + checkpoint.skippedCount,
+            total: checkpoint.fetchedCount,
+          };
+        }
+      }
+
+      // Use cached items if available for instant open
+      const cachedItems = syncManager.getCachedItems();
+      if (cachedItems.length > 0) {
+        syncManager.computeSyncState(cachedItems);
+      }
+
+      // Open the sync modal with all callbacks
       new SyncManagerModal(this.app, syncManager, this.apiClient, this.settings, {
         onImport: async (items: RedditItem[]) => {
           const result = await this.createMarkdownFiles(items);
@@ -860,6 +815,14 @@ export default class RedditSavedPlugin extends Plugin {
         },
         onSaveSettings: async () => {
           await this.saveSettings();
+        },
+        checkpointInfo,
+        onResumeCheckpoint: async () => {
+          await this.resumeImport();
+        },
+        onDiscardCheckpoint: async () => {
+          await this.importStateManager.clearCheckpoint();
+          new Notice('Checkpoint discarded');
         },
       }).open();
     } catch (error) {
@@ -1051,164 +1014,6 @@ class ExportStatsModal extends Modal {
 
     const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
     buttonContainer.createEl('button', { text: 'Close' }).onclick = () => this.close();
-  }
-
-  onClose() {
-    const { contentEl } = this;
-    contentEl.empty();
-  }
-}
-
-/**
- * Modal to display import preview results
- */
-class PreviewModal extends Modal {
-  private preview: {
-    wouldImport: RedditItem[];
-    wouldFilter: Array<{ item: RedditItem; reason: string }>;
-    wouldSkip: RedditItem[];
-    breakdown: FilterBreakdown;
-  };
-  private filterEnabled: boolean;
-
-  constructor(
-    app: App,
-    preview: {
-      wouldImport: RedditItem[];
-      wouldFilter: Array<{ item: RedditItem; reason: string }>;
-      wouldSkip: RedditItem[];
-      breakdown: FilterBreakdown;
-    },
-    filterEnabled: boolean
-  ) {
-    super(app);
-    this.preview = preview;
-    this.filterEnabled = filterEnabled;
-  }
-
-  onOpen() {
-    const { contentEl } = this;
-    contentEl.empty();
-
-    new Setting(contentEl).setName('Import preview').setHeading();
-
-    // Summary
-    const summaryDiv = contentEl.createDiv();
-    summaryDiv.setCssProps({
-      backgroundColor: 'var(--background-secondary)',
-      padding: '15px',
-      borderRadius: '8px',
-      marginBottom: '15px',
-    });
-
-    new Setting(summaryDiv).setName('Summary').setHeading();
-    summaryDiv.createEl('p', {
-      text: `✅ Would import: ${this.preview.wouldImport.length} items`,
-    });
-
-    if (this.filterEnabled) {
-      summaryDiv.createEl('p', {
-        text: `🔍 Would filter: ${this.preview.wouldFilter.length} items`,
-      });
-    }
-
-    summaryDiv.createEl('p', {
-      text: `⏭️ Would skip (already imported): ${this.preview.wouldSkip.length} items`,
-    });
-
-    // Filter breakdown
-    if (this.filterEnabled && this.preview.wouldFilter.length > 0) {
-      const breakdownDiv = contentEl.createDiv();
-      breakdownDiv.setCssProps({
-        marginBottom: '15px',
-      });
-
-      new Setting(breakdownDiv).setName('Filter breakdown').setHeading();
-      const breakdown = this.preview.breakdown;
-      const breakdownList = breakdownDiv.createEl('ul');
-
-      const breakdownItems: Array<{ key: keyof FilterBreakdown; label: string }> = [
-        { key: 'subreddit', label: 'Subreddit filter' },
-        { key: 'score', label: 'Score filter' },
-        { key: 'date', label: 'Date filter' },
-        { key: 'postType', label: 'Post type filter' },
-        { key: 'content', label: 'Content filter' },
-        { key: 'author', label: 'Author filter' },
-        { key: 'domain', label: 'Domain filter' },
-        { key: 'nsfw', label: 'NSFW filter' },
-        { key: 'commentCount', label: 'Comment count filter' },
-      ];
-
-      for (const { key, label } of breakdownItems) {
-        if (breakdown[key] > 0) {
-          breakdownList.createEl('li', { text: `${label}: ${breakdown[key]}` });
-        }
-      }
-    }
-
-    // Sample of items to import
-    if (this.preview.wouldImport.length > 0) {
-      const importDiv = contentEl.createDiv();
-      new Setting(importDiv).setName('Sample items to import').setHeading();
-
-      const sampleItems = this.preview.wouldImport.slice(0, 5);
-      const importList = importDiv.createEl('ul');
-
-      for (const item of sampleItems) {
-        const isComment = item.kind === 't1';
-        const title = isComment
-          ? `Comment on: ${item.data.link_title || 'Unknown'}`
-          : item.data.title || 'Untitled';
-        const li = importList.createEl('li');
-        li.createEl('strong', { text: `r/${item.data.subreddit}` });
-        li.createSpan({ text: ` - ${title.substring(0, 60)}${title.length > 60 ? '...' : ''}` });
-      }
-
-      if (this.preview.wouldImport.length > 5) {
-        importDiv.createEl('p', {
-          text: `...and ${this.preview.wouldImport.length - 5} more items`,
-          cls: 'mod-muted',
-        });
-      }
-    }
-
-    // Sample of filtered items
-    if (this.filterEnabled && this.preview.wouldFilter.length > 0) {
-      const filterDiv = contentEl.createDiv();
-      new Setting(filterDiv).setName('Sample filtered items').setHeading();
-
-      const sampleFiltered = this.preview.wouldFilter.slice(0, 5);
-      const filterList = filterDiv.createEl('ul');
-
-      for (const { item, reason } of sampleFiltered) {
-        const isComment = item.kind === 't1';
-        const title = isComment
-          ? `Comment on: ${item.data.link_title || 'Unknown'}`
-          : item.data.title || 'Untitled';
-        const li = filterList.createEl('li');
-        li.createEl('strong', { text: `r/${item.data.subreddit}` });
-        li.createSpan({ text: ` - ${title.substring(0, 40)}${title.length > 40 ? '...' : ''}` });
-        li.createEl('br');
-        li.createEl('em', { text: `Reason: ${reason}`, cls: 'mod-muted' });
-      }
-
-      if (this.preview.wouldFilter.length > 5) {
-        filterDiv.createEl('p', {
-          text: `...and ${this.preview.wouldFilter.length - 5} more filtered items`,
-          cls: 'mod-muted',
-        });
-      }
-    }
-
-    // Close button
-    const buttonDiv = contentEl.createDiv();
-    buttonDiv.setCssProps({
-      marginTop: '20px',
-      textAlign: 'right',
-    });
-
-    const closeBtn = buttonDiv.createEl('button', { text: 'Close' });
-    closeBtn.addEventListener('click', () => this.close());
   }
 
   onClose() {
