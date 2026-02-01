@@ -46,6 +46,7 @@ export default class RedditSavedPlugin extends Plugin {
   private importStateManager: ImportStateManager;
   private performanceMonitor: PerformanceMonitor;
   private currentAbortController: AbortController | null = null;
+  private isFetchingPosts = false;
 
   async onload() {
     await this.loadSettings();
@@ -162,6 +163,7 @@ export default class RedditSavedPlugin extends Plugin {
   onunload() {
     // Clean up resources
     this.importStateManager.cleanup();
+    this.auth.cleanup();
     if (this.currentAbortController) {
       this.currentAbortController.abort();
     }
@@ -207,6 +209,12 @@ export default class RedditSavedPlugin extends Plugin {
   }
 
   async fetchSavedPosts() {
+    // Prevent concurrent imports
+    if (this.isFetchingPosts) {
+      new Notice('Import already in progress');
+      return;
+    }
+
     if (!this.auth.isAuthenticated()) {
       new Notice(MSG_AUTH_REQUIRED);
       await this.auth.initiateOAuth();
@@ -229,6 +237,7 @@ export default class RedditSavedPlugin extends Plugin {
       }
     }
 
+    this.isFetchingPosts = true;
     try {
       await this.auth.ensureValidToken();
 
@@ -343,6 +352,7 @@ export default class RedditSavedPlugin extends Plugin {
       }
     } finally {
       this.currentAbortController = null;
+      this.isFetchingPosts = false;
     }
   }
 

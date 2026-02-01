@@ -521,7 +521,18 @@ export class SyncManagerModal extends Modal {
     const score = this.syncManager.getScore(syncItem);
     const dateStr = this.formatDate(syncItem);
 
-    metaEl.innerHTML = `r/${subreddit} <span style="opacity:0.5">•</span> ${isComment ? 'Comment' : 'Post'}${score !== undefined ? ` <span style="opacity:0.5">•</span> ${this.formatScore(score)} pts` : ''}${dateStr ? ` <span style="opacity:0.5">•</span> ${dateStr}` : ''}`;
+    // Build metadata safely using DOM API to prevent XSS
+    metaEl.createSpan({ text: `r/${subreddit}` });
+    metaEl.createSpan({ text: ' • ', cls: 'sync-item-separator' });
+    metaEl.createSpan({ text: isComment ? 'Comment' : 'Post' });
+    if (score !== undefined) {
+      metaEl.createSpan({ text: ' • ', cls: 'sync-item-separator' });
+      metaEl.createSpan({ text: `${this.formatScore(score)} pts` });
+    }
+    if (dateStr) {
+      metaEl.createSpan({ text: ' • ', cls: 'sync-item-separator' });
+      metaEl.createSpan({ text: dateStr });
+    }
 
     // Filter reason (for filtered items)
     if (syncItem.filterResult && !syncItem.filterResult.passes) {
@@ -860,6 +871,12 @@ export class SyncManagerModal extends Modal {
   }
 
   private async handleRefreshFromReddit() {
+    // Prevent concurrent refresh operations
+    if (this.isLoading) {
+      new Notice('Refresh already in progress');
+      return;
+    }
+
     this.isLoading = true;
     this.buildUI(); // Rebuild to show loading state
 

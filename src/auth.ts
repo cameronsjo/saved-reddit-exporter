@@ -445,6 +445,15 @@ export class RedditAuth {
     }
   }
 
+  /**
+   * Clean up resources when plugin is unloaded.
+   * Stops the OAuth server if running.
+   */
+  public cleanup(): void {
+    this.authorizationInProgress = false;
+    this.stopOAuthServer();
+  }
+
   private showAuthCodeInput(state: string): void {
     const modal = new AuthCodeModal(
       this.app,

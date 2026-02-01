@@ -581,6 +581,10 @@
 	border-radius: 3px;
 }
 
+.sync-item-separator {
+	opacity: 0.5;
+}
+
 /* Score column */
 .sync-item-score {
 	min-width: 60px;

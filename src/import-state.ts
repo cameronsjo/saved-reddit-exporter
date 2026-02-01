@@ -397,9 +397,11 @@ export class ImportStateManager {
    * Start auto-save timer
    */
   private startAutoSave(): void {
+    // Always stop existing timer first to prevent leaks
+    this.stopAutoSave();
+
     if (!this.config.enableCheckpointing) return;
 
-    this.stopAutoSave();
     this.autoSaveTimer = setInterval(() => {
       this.saveCheckpoint();
     }, this.config.autoSaveIntervalMs);
