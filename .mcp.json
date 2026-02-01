@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "beads": {
+      "command": "npx",
+      "args": ["-y", "@anthropic/beads-mcp"]
+    }
+  }
+}
