@@ -232,6 +232,15 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   checkWaybackArchive: false,
   includeArchiveLinks: true,
   extractExternalLinks: true,
+  // Obsidian integration defaults
+  linkifySubreddits: false,
+  linkifyAuthors: false,
+  addCssClass: true,
+  generateMOC: false,
+  tagsInFrontmatter: false,
+  // Progress tracking defaults
+  showProgressModal: true,
+  generateImportLog: false,
   // UI state defaults
   activeSettingsTab: 'setup',
 };

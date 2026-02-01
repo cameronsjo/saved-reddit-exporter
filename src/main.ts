@@ -36,6 +36,7 @@ import { FilterEngine, createEmptyBreakdown } from './filters';
 import { SyncItem } from './types';
 import { ImportStateManager, ImportProgress } from './import-state';
 import { PerformanceMonitor } from './performance-monitor';
+import { ImportProgressModal } from './progress-modal';
 
 export default class RedditSavedPlugin extends Plugin {
   settings: RedditSavedSettings;
@@ -47,6 +48,7 @@ export default class RedditSavedPlugin extends Plugin {
   private performanceMonitor: PerformanceMonitor;
   private currentAbortController: AbortController | null = null;
   private isFetchingPosts = false;
+  private progressModal: ImportProgressModal | null = null;
 
   async onload() {
     await this.loadSettings();
@@ -238,10 +240,19 @@ export default class RedditSavedPlugin extends Plugin {
     }
 
     this.isFetchingPosts = true;
+
+    // Show progress modal if enabled
+    if (this.settings.showProgressModal) {
+      this.progressModal = new ImportProgressModal(this.app, () => this.cancelImport());
+      this.progressModal.open();
+    }
+
     try {
       await this.auth.ensureValidToken();
 
-      new Notice(MSG_FETCHING_POSTS);
+      if (!this.settings.showProgressModal) {
+        new Notice(MSG_FETCHING_POSTS);
+      }
 
       // Start performance monitoring
       this.performanceMonitor.startSession();
@@ -311,23 +322,43 @@ export default class RedditSavedPlugin extends Plugin {
       // End performance monitoring
       this.performanceMonitor.endSession();
 
-      // Provide detailed feedback
-      const parts: string[] = [];
-      parts.push(`Imported ${result.imported}`);
-      if (result.filtered > 0) {
-        parts.push(`filtered ${result.filtered}`);
+      // Get final progress for display
+      const finalProgress = this.importStateManager.getProgress();
+
+      // Update progress modal or show notice
+      if (this.progressModal && finalProgress) {
+        this.progressModal.showComplete(finalProgress);
+      } else {
+        // Provide detailed feedback via notice
+        const parts: string[] = [];
+        parts.push(`Imported ${result.imported}`);
+        if (result.filtered > 0) {
+          parts.push(`filtered ${result.filtered}`);
+        }
+        if (result.skipped > 0) {
+          parts.push(`skipped ${result.skipped} existing`);
+        }
+        new Notice(parts.join(', '));
       }
-      if (result.skipped > 0) {
-        parts.push(`skipped ${result.skipped} existing`);
-      }
-      new Notice(parts.join(', '));
 
       // Show performance stats if enabled
       if (this.settings.showPerformanceStats) {
         console.debug(this.performanceMonitor.formatForDisplay());
-        new Notice(
-          'Performance stats logged to console. Use "Show import status" command for details.'
-        );
+        if (!this.progressModal) {
+          new Notice(
+            'Performance stats logged to console. Use "Show import status" command for details.'
+          );
+        }
+      }
+
+      // Generate MOC (Map of Content) if enabled
+      if (this.settings.generateMOC && result.imported > 0) {
+        await this.generateMapOfContent(result.importedItems);
+      }
+
+      // Generate import log if enabled
+      if (this.settings.generateImportLog) {
+        await this.generateImportLog(result, finalProgress);
       }
 
       // Handle unsave based on mode (only for saved items, not upvoted/user content)
@@ -343,16 +374,25 @@ export default class RedditSavedPlugin extends Plugin {
     } catch (error) {
       console.error('Error fetching posts:', error);
       const errorMessage = error instanceof Error ? error.message : String(error);
-      new Notice(`Error: ${errorMessage}`);
+
+      // Update progress modal or show notice
+      if (this.progressModal) {
+        this.progressModal.showCancelled();
+      } else {
+        new Notice(`Error: ${errorMessage}`);
+      }
 
       // Save state for potential resumption
       if (this.settings.enableCheckpointing) {
         this.importStateManager.pause();
-        new Notice('Import state saved. You can resume later.');
+        if (!this.progressModal) {
+          new Notice('Import state saved. You can resume later.');
+        }
       }
     } finally {
       this.currentAbortController = null;
       this.isFetchingPosts = false;
+      this.progressModal = null;
     }
   }
 
@@ -471,13 +511,17 @@ export default class RedditSavedPlugin extends Plugin {
   /**
    * Handle progress updates during import
    */
-  private handleProgressUpdate(progress: ImportProgress) {
-    // Could be used to update UI in the future
-    // For now, just log significant milestones
-    if (progress.processedCount > 0 && progress.processedCount % 50 === 0) {
-      new Notice(
-        `Progress: ${progress.processedCount} items processed (${progress.itemsPerSecond.toFixed(1)}/sec)`
-      );
+  private handleProgressUpdate(progress: ImportProgress, currentItemTitle?: string) {
+    // Update progress modal if open
+    if (this.progressModal) {
+      this.progressModal.updateProgress(progress, currentItemTitle);
+    } else {
+      // Fall back to notices for significant milestones
+      if (progress.processedCount > 0 && progress.processedCount % 50 === 0) {
+        new Notice(
+          `Progress: ${progress.processedCount} items processed (${progress.itemsPerSecond.toFixed(1)}/sec)`
+        );
+      }
     }
   }
 
@@ -617,7 +661,12 @@ export default class RedditSavedPlugin extends Plugin {
     const filterBreakdown = createEmptyBreakdown();
     const importedItems: RedditItem[] = [];
 
-    for (const item of items) {
+    // Add items to state manager for progress tracking
+    // This sets fetchedCount which is used as total expected
+    this.importStateManager.addFetchedItems(items);
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
       // Check for cancellation
       if (this.currentAbortController?.signal.aborted) {
         break;
@@ -748,11 +797,26 @@ export default class RedditSavedPlugin extends Plugin {
         importedCount++;
         this.importStateManager.markItemImported(redditId);
         this.performanceMonitor.recordItemProcessed('imported');
+
+        // Update progress modal
+        const currentTitle = isComment
+          ? `Comment on: ${data.link_title || 'Unknown'}`
+          : data.title || 'Untitled';
+        const progress = this.importStateManager.getProgress();
+        if (progress) {
+          this.handleProgressUpdate(progress, currentTitle);
+        }
       } catch (error) {
         console.error(`Error creating file for item ${redditId}:`, error);
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.importStateManager.markItemFailed(redditId, errorMessage, true);
         this.performanceMonitor.recordItemProcessed('failed');
+
+        // Update progress modal even on failure
+        const progress = this.importStateManager.getProgress();
+        if (progress) {
+          this.handleProgressUpdate(progress);
+        }
       }
     }
 
@@ -987,6 +1051,166 @@ export default class RedditSavedPlugin extends Plugin {
       const errorMessage = error instanceof Error ? error.message : String(error);
       new Notice(`Failed to get stats: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Generate a Map of Content (MOC) index file per subreddit
+   *
+   * Creates a markdown file listing all imported items organized by subreddit,
+   * making it easy to navigate Reddit content in Obsidian's graph view.
+   */
+  private async generateMapOfContent(importedItems: RedditItem[]): Promise<void> {
+    // Group items by subreddit
+    const bySubreddit = new Map<string, RedditItem[]>();
+
+    for (const item of importedItems) {
+      const subreddit = item.data.subreddit || 'unknown';
+      if (!bySubreddit.has(subreddit)) {
+        bySubreddit.set(subreddit, []);
+      }
+      bySubreddit.get(subreddit)!.push(item);
+    }
+
+    // Create or update MOC file
+    const mocPath = `${this.settings.saveLocation}/Reddit MOC.md`;
+
+    // Build MOC content
+    let content = '---\n';
+    content += 'type: reddit-moc\n';
+    content += `updated: ${new Date().toISOString()}\n`;
+    content += '---\n\n';
+    content += '# Reddit Map of Content\n\n';
+    content += `*Last updated: ${new Date().toLocaleString()}*\n\n`;
+
+    // Sort subreddits alphabetically
+    const sortedSubreddits = Array.from(bySubreddit.keys()).sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
+
+    for (const subreddit of sortedSubreddits) {
+      const items = bySubreddit.get(subreddit)!;
+      content += `## r/${subreddit}\n\n`;
+
+      // Sort items by score descending
+      items.sort((a, b) => (b.data.score || 0) - (a.data.score || 0));
+
+      for (const item of items) {
+        const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
+        const title = isComment
+          ? `Comment on: ${item.data.link_title || 'Unknown'}`
+          : item.data.title || 'Untitled';
+
+        // Create a wikilink to the file
+        const sanitizedTitle = title.replace(/[\\/:*?"<>|]/g, '').substring(0, 60);
+        content += `- [[${sanitizedTitle}]] (${item.data.score || 0} pts)\n`;
+      }
+      content += '\n';
+    }
+
+    // Create or update the MOC file
+    const existingFile = this.app.vault.getAbstractFileByPath(mocPath);
+    if (existingFile && 'path' in existingFile) {
+      await this.app.vault.modify(existingFile as import('obsidian').TFile, content);
+    } else {
+      // Ensure folder exists
+      const folder = this.app.vault.getAbstractFileByPath(this.settings.saveLocation);
+      if (!folder) {
+        await this.app.vault.createFolder(this.settings.saveLocation);
+      }
+      await this.app.vault.create(mocPath, content);
+    }
+
+    new Notice('Generated Reddit Map of Content');
+  }
+
+  /**
+   * Generate an import log file with statistics
+   *
+   * Creates a detailed log of the import session including:
+   * - Timestamp and duration
+   * - Items imported, skipped, filtered, failed
+   * - Filter breakdown
+   * - Performance metrics
+   */
+  private async generateImportLog(
+    result: ImportResult,
+    progress: ImportProgress | null
+  ): Promise<void> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const logPath = `${this.settings.saveLocation}/import-log-${timestamp.substring(0, 19)}.md`;
+
+    let content = '---\n';
+    content += 'type: reddit-import-log\n';
+    content += `timestamp: ${new Date().toISOString()}\n`;
+    content += '---\n\n';
+    content += '# Import Log\n\n';
+    content += `**Date:** ${new Date().toLocaleString()}\n\n`;
+
+    // Summary
+    content += '## Summary\n\n';
+    content += `| Metric | Count |\n`;
+    content += `|--------|-------|\n`;
+    content += `| Imported | ${result.imported} |\n`;
+    content += `| Skipped (existing) | ${result.skipped} |\n`;
+    content += `| Filtered | ${result.filtered} |\n`;
+
+    if (progress) {
+      content += `| Failed | ${progress.failedCount} |\n`;
+      content += `| Total processed | ${progress.processedCount} |\n`;
+      content += `| Duration | ${(progress.elapsedMs / 1000).toFixed(1)}s |\n`;
+      content += `| Speed | ${progress.itemsPerSecond.toFixed(2)} items/sec |\n`;
+    }
+
+    // Filter breakdown
+    if (result.filterBreakdown && result.filtered > 0) {
+      content += '\n## Filter Breakdown\n\n';
+      content += '| Filter Type | Count |\n';
+      content += '|-------------|-------|\n';
+
+      for (const [filterType, count] of Object.entries(result.filterBreakdown)) {
+        if (count > 0) {
+          content += `| ${filterType} | ${count} |\n`;
+        }
+      }
+    }
+
+    // Imported items list
+    if (result.importedItems.length > 0) {
+      content += '\n## Imported Items\n\n';
+
+      // Group by subreddit for readability
+      const bySubreddit = new Map<string, string[]>();
+      for (const item of result.importedItems) {
+        const subreddit = item.data.subreddit || 'unknown';
+        if (!bySubreddit.has(subreddit)) {
+          bySubreddit.set(subreddit, []);
+        }
+        const isComment = item.kind === REDDIT_ITEM_TYPE_COMMENT;
+        const title = isComment
+          ? `Comment: ${item.data.link_title?.substring(0, 50) || 'Unknown'}`
+          : item.data.title?.substring(0, 50) || 'Untitled';
+        bySubreddit.get(subreddit)!.push(title);
+      }
+
+      for (const [subreddit, titles] of bySubreddit) {
+        content += `### r/${subreddit} (${titles.length})\n`;
+        for (const title of titles.slice(0, 20)) {
+          // Limit to 20 per subreddit
+          content += `- ${title}\n`;
+        }
+        if (titles.length > 20) {
+          content += `- ... and ${titles.length - 20} more\n`;
+        }
+        content += '\n';
+      }
+    }
+
+    // Create the log file
+    const folder = this.app.vault.getAbstractFileByPath(this.settings.saveLocation);
+    if (!folder) {
+      await this.app.vault.createFolder(this.settings.saveLocation);
+    }
+    await this.app.vault.create(logPath, content);
   }
 }
 

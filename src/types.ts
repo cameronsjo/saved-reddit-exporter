@@ -141,6 +141,15 @@ export interface RedditSavedSettings {
   checkWaybackArchive: boolean; // Check if links are already archived
   includeArchiveLinks: boolean; // Include Wayback Machine links in output
   extractExternalLinks: boolean; // Extract and list external links from content
+  // Obsidian integration settings
+  linkifySubreddits: boolean; // Create [[r/subreddit]] links in frontmatter
+  linkifyAuthors: boolean; // Create [[u/author]] links in frontmatter
+  addCssClass: boolean; // Add cssclass for styling
+  generateMOC: boolean; // Generate Map of Content per subreddit after import
+  tagsInFrontmatter: boolean; // Include tags array in YAML frontmatter
+  // Progress tracking settings
+  showProgressModal: boolean; // Show progress modal during import
+  generateImportLog: boolean; // Create import log file after import
   // UI state
   activeSettingsTab: SettingsTab; // Currently selected settings tab
   // Sync cache for instant Sync Manager open

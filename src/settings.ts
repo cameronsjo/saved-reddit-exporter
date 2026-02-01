@@ -1242,5 +1242,96 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         })
       );
     }
+
+    // Obsidian Integration (collapsible)
+    const obsidianDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const obsidianSummary = obsidianDetails.createEl('summary');
+    setIcon(obsidianSummary.createSpan(), 'gem');
+    obsidianSummary.createSpan({ text: 'Obsidian Integration' });
+
+    const obsidianContent = obsidianDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    const obsidianInfo = obsidianContent.createDiv({ cls: 'settings-info-box compact' });
+    obsidianInfo.createSpan({
+      text: 'Enhance Obsidian graph and search with Reddit-specific features.',
+    });
+
+    new Setting(obsidianContent)
+      .setName('Linkify subreddits')
+      .setDesc('Create [[r/subreddit]] links in frontmatter for graph view')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.linkifySubreddits).onChange(async value => {
+          this.settings.linkifySubreddits = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(obsidianContent)
+      .setName('Linkify authors')
+      .setDesc('Create [[u/author]] links in frontmatter for graph view')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.linkifyAuthors).onChange(async value => {
+          this.settings.linkifyAuthors = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(obsidianContent)
+      .setName('Add CSS class')
+      .setDesc('Add cssclass to frontmatter for custom styling')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.addCssClass).onChange(async value => {
+          this.settings.addCssClass = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(obsidianContent)
+      .setName('Tags in frontmatter')
+      .setDesc('Include tags array in YAML (Dataview-compatible)')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.tagsInFrontmatter).onChange(async value => {
+          this.settings.tagsInFrontmatter = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(obsidianContent)
+      .setName('Generate MOC')
+      .setDesc('Create Map of Content index per subreddit after import')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.generateMOC).onChange(async value => {
+          this.settings.generateMOC = value;
+          await this.saveSettings();
+        })
+      );
+
+    // Progress Tracking (collapsible)
+    const progressDetails = containerEl.createEl('details', { cls: 'settings-collapsible' });
+    const progressSummary = progressDetails.createEl('summary');
+    setIcon(progressSummary.createSpan(), 'activity');
+    progressSummary.createSpan({ text: 'Progress Tracking' });
+
+    const progressContent = progressDetails.createDiv({ cls: 'settings-collapsible-content' });
+
+    new Setting(progressContent)
+      .setName('Show progress modal')
+      .setDesc('Display real-time import progress with ETA')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.showProgressModal).onChange(async value => {
+          this.settings.showProgressModal = value;
+          await this.saveSettings();
+        })
+      );
+
+    new Setting(progressContent)
+      .setName('Generate import log')
+      .setDesc('Create a log file after each import with statistics')
+      .addToggle(toggle =>
+        toggle.setValue(this.settings.generateImportLog).onChange(async value => {
+          this.settings.generateImportLog = value;
+          await this.saveSettings();
+        })
+      );
   }
 }

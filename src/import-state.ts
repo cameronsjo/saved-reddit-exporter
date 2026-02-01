@@ -375,6 +375,7 @@ export class ImportStateManager {
       importedCount: this.checkpoint.importedCount,
       skippedCount: this.checkpoint.skippedCount,
       failedCount: this.checkpoint.failedCount,
+      totalExpected: this.checkpoint.fetchedCount, // Use fetchedCount as total expected
       elapsedMs,
       itemsPerSecond,
       estimatedRemainingMs,

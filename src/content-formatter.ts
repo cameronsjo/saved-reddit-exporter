@@ -85,12 +85,28 @@ export class ContentFormatter {
     let content = `---\n`;
     content += `type: ${this.getFrontmatterType(isComment, contentOrigin)}\n`;
     content += `content_origin: ${contentOrigin}\n`;
-    content += `subreddit: ${effectiveData.subreddit}\n`;
-    content += `author: ${effectiveData.author}\n`;
+
+    // Subreddit - optionally linkified for Obsidian graph
+    const subredditValue = this.settings.linkifySubreddits
+      ? `"[[r/${effectiveData.subreddit}]]"`
+      : effectiveData.subreddit;
+    content += `subreddit: ${subredditValue}\n`;
+
+    // Author - optionally linkified for Obsidian graph
+    const authorValue = this.settings.linkifyAuthors
+      ? `"[[u/${effectiveData.author}]]"`
+      : effectiveData.author;
+    content += `author: ${authorValue}\n`;
+
     content += `created: ${created}\n`;
     content += `date: ${createdDate}\n`;
     content += `permalink: https://reddit.com${effectiveData.permalink}\n`;
     content += `id: ${data.id}\n`;
+
+    // Add cssclass for Obsidian styling
+    if (this.settings.addCssClass) {
+      content += `cssclass: reddit-${isComment ? 'comment' : 'post'}\n`;
+    }
 
     // Only add saved: true for saved content
     if (this.isSavedContent(contentOrigin)) {
@@ -202,6 +218,15 @@ export class ContentFormatter {
       }
     }
 
+    // Add tags as YAML array if enabled (Dataview-friendly)
+    if (this.settings.tagsInFrontmatter) {
+      const tags = this.generateTags(effectiveData, isComment, contentOrigin);
+      content += `tags:\n`;
+      for (const tag of tags) {
+        content += `  - ${tag}\n`;
+      }
+    }
+
     content += `---\n\n`;
 
     if (isComment) {
@@ -241,6 +266,37 @@ export class ContentFormatter {
     content += this.formatFooter(effectiveData, isComment, contentOrigin);
 
     return content;
+  }
+
+  /**
+   * Generate tags for a Reddit item
+   */
+  private generateTags(
+    data: RedditItemData,
+    isComment: boolean,
+    contentOrigin: ContentOrigin
+  ): string[] {
+    const tags = [`reddit`, `r-${data.subreddit.toLowerCase()}`];
+
+    if (data.link_flair_text) {
+      tags.push(data.link_flair_text.toLowerCase().replace(/\s+/g, '-'));
+    }
+
+    tags.push(`reddit-${contentOrigin}`);
+
+    if (isComment) {
+      tags.push('reddit-comment');
+    } else {
+      tags.push('reddit-post');
+      if (this.mediaHandler.isGalleryPost(data)) {
+        tags.push('reddit-gallery');
+      }
+      if (this.mediaHandler.isPollPost(data)) {
+        tags.push('reddit-poll');
+      }
+    }
+
+    return tags;
   }
 
   /**
@@ -855,31 +911,11 @@ export class ContentFormatter {
   ): string {
     let content = '\n\n---\n\n';
 
-    // Tags for organization
-    const tags = [`#reddit`, `#r-${data.subreddit.toLowerCase()}`];
-    if (data.link_flair_text) {
-      tags.push(`#${data.link_flair_text.toLowerCase().replace(/\s+/g, '-')}`);
+    // Tags - only add inline if not in frontmatter
+    if (!this.settings.tagsInFrontmatter) {
+      const tags = this.generateTags(data, isComment, contentOrigin).map(t => `#${t}`);
+      content += `${tags.join(' ')}\n\n`;
     }
-
-    // Add content origin tag
-    tags.push(`#reddit-${contentOrigin}`);
-
-    // Add type tag
-    if (isComment) {
-      tags.push('#reddit-comment');
-    } else {
-      tags.push('#reddit-post');
-      // Add gallery/poll tags
-      if (this.mediaHandler.isGalleryPost(data)) {
-        tags.push('#reddit-gallery');
-      }
-      if (this.mediaHandler.isPollPost(data)) {
-        tags.push('#reddit-poll');
-      }
-    }
-
-    // Tags without prefix label
-    content += `${tags.join(' ')}\n\n`;
 
     // Links on one line with arrow format and separator
     const links: string[] = [`[View on Reddit →](https://reddit.com${data.permalink})`];
