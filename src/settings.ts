@@ -454,6 +454,54 @@ export class RedditSavedSettingTab extends PluginSettingTab {
               }
             })
         );
+
+      new Setting(commentContent)
+        .setName('Max comments per post')
+        .setDesc('Maximum number of comments to export (0 = unlimited)')
+        .addText(text =>
+          text
+            .setPlaceholder('100')
+            .setValue(String(this.settings.maxCommentsPerPost))
+            .onChange(async value => {
+              const num = parseInt(value);
+              if (!isNaN(num) && num >= 0) {
+                this.settings.maxCommentsPerPost = num;
+                await this.saveSettings();
+              }
+            })
+        );
+
+      new Setting(commentContent)
+        .setName('Comment sort order')
+        .setDesc('How comments are sorted when fetching')
+        .addDropdown(dropdown =>
+          dropdown
+            .addOption('top', 'Top')
+            .addOption('best', 'Best')
+            .addOption('new', 'New')
+            .addOption('controversial', 'Controversial')
+            .addOption('old', 'Old')
+            .addOption('qa', 'Q&A')
+            .setValue(this.settings.commentSortOrder)
+            .onChange(async value => {
+              this.settings.commentSortOrder = value as 'top' | 'best' | 'new' | 'controversial' | 'old' | 'qa';
+              await this.saveSettings();
+            })
+        );
+
+      new Setting(commentContent)
+        .setName('Max comment depth')
+        .setDesc('Maximum nesting depth for comment threads (1-10)')
+        .addSlider(slider =>
+          slider
+            .setLimits(1, 10, 1)
+            .setValue(this.settings.maxCommentDepth)
+            .setDynamicTooltip()
+            .onChange(async value => {
+              this.settings.maxCommentDepth = value;
+              await this.saveSettings();
+            })
+        );
     }
 
     // Organization

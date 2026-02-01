@@ -1,5 +1,11 @@
 import { App, TFile } from 'obsidian';
-import { RedditSavedSettings, RedditItemData, MediaInfo, TemplaterContext } from './types';
+import {
+  RedditSavedSettings,
+  RedditItemData,
+  MediaInfo,
+  TemplaterContext,
+  ObsidianAppWithTemplater,
+} from './types';
 import {
   REDDIT_BASE_URL,
   FRONTMATTER_TYPE_POST,
@@ -24,8 +30,8 @@ export class TemplaterHandler {
    * Check if the Templater plugin is available and properly configured
    */
   isTemplaterAvailable(): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian's internal plugin API is not typed
-    const templaterPlugin = (this.app as any).plugins?.plugins?.['templater-obsidian'];
+    const appWithTemplater = this.app as ObsidianAppWithTemplater;
+    const templaterPlugin = appWithTemplater.plugins?.plugins?.['templater-obsidian'];
     if (!templaterPlugin) {
       return false;
     }
@@ -267,8 +273,8 @@ export class TemplaterHandler {
    */
   async runTemplaterOnFile(file: TFile): Promise<void> {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Obsidian's internal plugin API is not typed
-      const templaterPlugin = (this.app as any).plugins?.plugins?.['templater-obsidian'];
+      const appWithTemplater = this.app as ObsidianAppWithTemplater;
+      const templaterPlugin = appWithTemplater.plugins?.plugins?.['templater-obsidian'];
       if (!templaterPlugin?.templater?.overwrite_file_commands) {
         return;
       }

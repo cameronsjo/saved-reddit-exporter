@@ -205,6 +205,9 @@ export const DEFAULT_SETTINGS: RedditSavedSettings = {
   filenameTemplate: '{title}', // Default to title-based names
   exportPostComments: false,
   commentUpvoteThreshold: 0,
+  maxCommentsPerPost: 100,
+  commentSortOrder: 'top',
+  maxCommentDepth: 5,
   // Filter defaults
   filterSettings: DEFAULT_FILTER_SETTINGS,
   showFilterSettings: false,

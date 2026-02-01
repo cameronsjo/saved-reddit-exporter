@@ -41,12 +41,37 @@ import {
 import { escapeHtml } from './utils/html-escape';
 import { generateCsrfToken } from './utils/crypto-utils';
 
+/**
+ * Node.js HTTP types for OAuth callback handling.
+ * Typed separately since Node types aren't available in Obsidian's browser context.
+ */
+interface OAuthRequest {
+  url?: string;
+}
+
+interface OAuthResponse {
+  writeHead: (code: number, headers: Record<string, string>) => void;
+  end: (html: string) => void;
+}
+
+type OAuthRequestHandler = (req: OAuthRequest, res: OAuthResponse) => void;
+
+interface OAuthHttpServer {
+  close: () => void;
+  on: (event: string, callback: (err: { code: string }) => void) => void;
+  listen: (port: number, hostname: string, callback: () => void) => void;
+}
+
+interface NodeHttpModule {
+  createServer: (callback: OAuthRequestHandler) => OAuthHttpServer;
+}
+
 export class RedditAuth {
   private app: App;
   private settings: RedditSavedSettings;
   private saveSettings: () => Promise<void>;
   private authorizationInProgress = false;
-  private oauthServer: unknown = null;
+  private oauthServer: OAuthHttpServer | null = null;
 
   constructor(app: App, settings: RedditSavedSettings, saveSettings: () => Promise<void>) {
     this.app = app;
@@ -247,38 +272,12 @@ export class RedditAuth {
         }
 
         // Close any existing server
-        if (
-          this.oauthServer &&
-          typeof this.oauthServer === 'object' &&
-          'close' in this.oauthServer
-        ) {
-          (this.oauthServer as { close: () => void }).close();
+        if (this.oauthServer) {
+          this.oauthServer.close();
         }
 
-        this.oauthServer = (
-          http as {
-            createServer: (
-              callback: (
-                req: { url?: string },
-                res: {
-                  writeHead: (code: number, headers: Record<string, string>) => void;
-                  end: (html: string) => void;
-                }
-              ) => void
-            ) => {
-              close: () => void;
-              on: (event: string, callback: (err: { code: string }) => void) => void;
-              listen: (port: number, hostname: string, callback: () => void) => void;
-            };
-          }
-        ).createServer(
-          (
-            req: { url?: string },
-            res: {
-              writeHead: (code: number, headers: Record<string, string>) => void;
-              end: (html: string) => void;
-            }
-          ) => {
+        this.oauthServer = (http as NodeHttpModule).createServer(
+          (req: OAuthRequest, res: OAuthResponse) => {
             try {
               const url = new URL(req.url!, `http://localhost:${this.settings.oauthRedirectPort}`);
               const code = url.searchParams.get('code');
@@ -362,11 +361,7 @@ export class RedditAuth {
           }
         );
 
-        (
-          this.oauthServer as {
-            on: (event: string, callback: (err: { code: string }) => void) => void;
-          }
-        ).on('error', (err: { code: string }) => {
+        this.oauthServer.on('error', (err: { code: string }) => {
           if (err.code === 'EADDRINUSE') {
             reject(
               new Error(
@@ -378,22 +373,14 @@ export class RedditAuth {
           }
         });
 
-        (
-          this.oauthServer as {
-            listen: (port: number, hostname: string, callback: () => void) => void;
-          }
-        ).listen(this.settings.oauthRedirectPort, 'localhost', () => {
+        this.oauthServer.listen(this.settings.oauthRedirectPort, 'localhost', () => {
           resolve();
         });
 
         // Auto-close server after timeout to prevent hanging
         setTimeout(() => {
-          if (
-            this.oauthServer &&
-            typeof this.oauthServer === 'object' &&
-            'close' in this.oauthServer
-          ) {
-            (this.oauthServer as { close: () => void }).close();
+          if (this.oauthServer) {
+            this.oauthServer.close();
             this.oauthServer = null;
             if (this.authorizationInProgress) {
               new Notice(MSG_OAUTH_TIMEOUT);
@@ -439,8 +426,8 @@ export class RedditAuth {
   }
 
   private stopOAuthServer(): void {
-    if (this.oauthServer && typeof this.oauthServer === 'object' && 'close' in this.oauthServer) {
-      (this.oauthServer as { close: () => void }).close();
+    if (this.oauthServer && typeof this.oauthServer.close === 'function') {
+      this.oauthServer.close();
       this.oauthServer = null;
     }
   }

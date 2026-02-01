@@ -2,6 +2,18 @@
  * Performance monitoring module for tracking import metrics and diagnostics
  */
 
+/**
+ * Chrome/Electron memory API extension for performance object.
+ * Not part of standard Performance interface but available in Electron.
+ */
+interface PerformanceWithMemory extends Performance {
+  memory?: {
+    usedJSHeapSize: number;
+    totalJSHeapSize: number;
+    jsHeapSizeLimit: number;
+  };
+}
+
 export interface RequestMetrics {
   /** Total requests made */
   totalRequests: number;
@@ -508,8 +520,7 @@ export class PerformanceMonitor {
     };
 
     // Try to get memory info (Chrome/Electron specific)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Chrome/Electron memory API is not in standard types
-    const perf = performance as any;
+    const perf = performance as PerformanceWithMemory;
     if (perf.memory) {
       sample.usedHeapSize = perf.memory.usedJSHeapSize;
       sample.totalHeapSize = perf.memory.totalJSHeapSize;

@@ -1,7 +1,50 @@
+import { App } from 'obsidian';
+
 export type UnsaveMode = 'off' | 'prompt' | 'auto';
+
+/** Comment sort order options for Reddit API */
+export type CommentSortOrder = 'top' | 'best' | 'controversial' | 'new' | 'old' | 'qa';
 
 /** Settings tab for organized settings UI */
 export type SettingsTab = 'setup' | 'import' | 'filters' | 'advanced';
+
+/**
+ * Templater plugin interface for template processing.
+ */
+export interface TemplaterPluginInstance {
+  settings?: {
+    templates_folder?: string;
+  };
+  templater?: {
+    overwrite_file_commands?: (file: unknown, activeFile?: unknown) => Promise<void>;
+  };
+}
+
+/**
+ * Plugin manifest interface.
+ */
+export interface PluginManifest {
+  manifest?: {
+    version?: string;
+  };
+}
+
+/**
+ * Extended Obsidian App interface for accessing internal plugin APIs.
+ * These are not part of the public API but are needed for plugin interop.
+ */
+export interface ObsidianAppWithPlugins extends App {
+  plugins?: {
+    plugins?: {
+      'saved-reddit-exporter'?: PluginManifest;
+      'templater-obsidian'?: TemplaterPluginInstance;
+      [key: string]: unknown;
+    };
+  };
+}
+
+// Re-export for backwards compatibility
+export type ObsidianAppWithTemplater = ObsidianAppWithPlugins;
 
 /** OAuth app type determines authentication flow */
 export type OAuthAppType = 'script' | 'installed';
@@ -71,6 +114,9 @@ export interface RedditSavedSettings {
   filenameTemplate: string; // Custom filename template
   exportPostComments: boolean; // Export comments from saved posts
   commentUpvoteThreshold: number; // Minimum upvotes for comments to be included
+  maxCommentsPerPost: number; // Maximum comments to export per post (0 = unlimited)
+  commentSortOrder: CommentSortOrder; // Sort order for fetched comments
+  maxCommentDepth: number; // Maximum nesting depth for comment threads
   // Filter settings
   filterSettings: FilterSettings;
   showFilterSettings: boolean; // Toggle filter settings visibility

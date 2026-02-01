@@ -489,9 +489,14 @@ export class RedditApiClient {
   ): Promise<RedditComment[]> {
     await this.ensureValidToken();
 
+    // Use configurable settings for comment fetching
+    const limit = this.settings.maxCommentsPerPost || 100;
+    const depth = this.settings.maxCommentDepth || 5;
+    const sort = this.settings.commentSortOrder || 'top';
+
     // Reddit API endpoint for comments: /r/subreddit/comments/article_id
     // The permalink already contains the path, we just need to use it
-    const url = `${REDDIT_OAUTH_BASE_URL}${permalink}.json?limit=100&depth=5&sort=top`;
+    const url = `${REDDIT_OAUTH_BASE_URL}${permalink}.json?limit=${limit}&depth=${depth}&sort=${sort}`;
 
     const params: RequestUrlParam = {
       url,
@@ -512,7 +517,7 @@ export class RedditApiClient {
       }
 
       const commentsData = response.json[1]?.data?.children || [];
-      return this.parseComments(commentsData, upvoteThreshold, 0);
+      return this.parseComments(commentsData, upvoteThreshold, 0, depth);
     } catch (error) {
       console.error('Error fetching comments:', error);
       return [];
