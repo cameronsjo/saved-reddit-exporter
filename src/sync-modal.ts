@@ -36,6 +36,7 @@ export class SyncManagerModal extends Modal {
   private isProcessing = false;
   private isLoading = false;
   private hasLoadedInitially = false;
+  private showUnsaved = false;
   private onRefresh: () => Promise<RedditItem[]>;
   private onSaveSettings: () => Promise<void>;
   private checkpointInfo?: { processed: number; total: number };
@@ -216,16 +217,19 @@ export class SyncManagerModal extends Modal {
     this.updateStats();
   }
 
-  private updateStats() {
+  private computeStatusCounts(): Record<string, number> {
     const items = this.syncManager.getAllSyncItems();
-    const stats = {
+    return {
       imported: items.filter(i => i.status === 'imported').length,
       pending: items.filter(i => i.status === 'pending').length,
-      filtered: items.filter(i => i.status === 'filtered' || i.status === 'override-pending')
-        .length,
+      filtered: items.filter(i => i.status === 'filtered' || i.status === 'override-pending').length,
       orphaned: items.filter(i => i.status === 'orphaned').length,
-      overridden: items.filter(i => i.status === 'override-pending').length,
+      all: items.filter(i => this.showUnsaved || i.status !== 'orphaned').length,
     };
+  }
+
+  private updateStats() {
+    const counts = this.computeStatusCounts();
 
     this.statsContainer.empty();
 
@@ -238,32 +242,37 @@ export class SyncManagerModal extends Modal {
       }
     };
 
-    createStat('Imported', stats.imported, 'imported');
-    createStat('Pending', stats.pending, 'pending');
-    createStat('Filtered', stats.filtered, stats.overridden > 0 ? 'filtered' : undefined);
-    if (stats.overridden > 0) {
-      createStat('Overridden', stats.overridden);
+    createStat('In Vault', counts.imported, 'imported');
+    createStat('Ready', counts.pending, 'pending');
+    createStat('Skipped', counts.filtered, 'filtered');
+    if (this.showUnsaved && counts.orphaned > 0) {
+      createStat('Unsaved', counts.orphaned, 'orphaned');
     }
-    if (stats.orphaned > 0) {
-      createStat('Orphaned', stats.orphaned, 'orphaned');
-    }
-    createStat('Selected', this.selectedItems.size);
   }
 
   private buildTabBar() {
     const { contentEl } = this;
     const tabBar = contentEl.createDiv({ cls: 'sync-tab-bar' });
 
-    const tabs: Array<{ id: SyncTab; label: string }> = [
-      { id: 'all', label: 'All' },
-      { id: 'pending', label: 'Pending' },
-      { id: 'imported', label: 'Imported' },
-      { id: 'filtered', label: 'Filtered' },
-      { id: 'orphaned', label: 'Orphaned' },
+    const counts = this.computeStatusCounts();
+
+    const tabs: Array<{ id: SyncTab; label: string; count: number }> = [
+      { id: 'all', label: 'All', count: counts.all },
+      { id: 'pending', label: 'Ready', count: counts.pending },
+      { id: 'imported', label: 'In Vault', count: counts.imported },
+      { id: 'filtered', label: 'Skipped', count: counts.filtered },
     ];
 
+    // Only show Unsaved tab when toggle is on
+    if (this.showUnsaved) {
+      tabs.push({ id: 'orphaned', label: 'Unsaved', count: counts.orphaned });
+    }
+
     for (const tab of tabs) {
-      const btn = tabBar.createEl('button', { text: tab.label, cls: 'sync-tab-btn' });
+      const btn = tabBar.createEl('button', {
+        text: `${tab.label} (${tab.count})`,
+        cls: 'sync-tab-btn',
+      });
 
       if (this.activeTab === tab.id) {
         btn.addClass('mod-cta');
@@ -282,8 +291,19 @@ export class SyncManagerModal extends Modal {
   }
 
   private updateTabStyles() {
+    const counts = this.computeStatusCounts();
+    const labelMap: Record<SyncTab, string> = {
+      all: 'All',
+      pending: 'Ready',
+      imported: 'In Vault',
+      filtered: 'Skipped',
+      orphaned: 'Unsaved',
+    };
+
     for (const [id, btn] of this.tabButtons) {
       btn.classList.toggle('mod-cta', this.activeTab === id);
+      const count = id === 'all' ? counts.all : counts[id] ?? 0;
+      btn.textContent = `${labelMap[id]} (${count})`;
     }
   }
 
@@ -336,6 +356,19 @@ export class SyncManagerModal extends Modal {
       this.refreshList();
     };
 
+    // Show unsaved toggle
+    const unsavedToggle = controls.createEl('label', { cls: 'sync-unsaved-toggle' });
+    const unsavedCheckbox = unsavedToggle.createEl('input', { type: 'checkbox' });
+    unsavedCheckbox.checked = this.showUnsaved;
+    unsavedToggle.createSpan({ text: 'Show unsaved' });
+    unsavedCheckbox.onchange = () => {
+      this.showUnsaved = unsavedCheckbox.checked;
+      if (!this.showUnsaved && this.activeTab === 'orphaned') {
+        this.activeTab = 'all';
+      }
+      this.buildUI();
+    };
+
     // Bulk selection buttons
     const bulkActions = controls.createDiv({ cls: 'sync-bulk-actions' });
 
@@ -369,17 +402,13 @@ export class SyncManagerModal extends Modal {
   private renderEmptyState() {
     const emptyState = this.listContainer.createDiv({ cls: 'sync-empty-state' });
 
-    const icon = emptyState.createDiv({ cls: 'sync-empty-icon' });
-    icon.textContent = '📭';
+    emptyState.createEl('h3', { text: 'Welcome to Sync Manager', cls: 'sync-empty-title' });
 
     const message = emptyState.createDiv({ cls: 'sync-empty-message' });
-    message.textContent = 'No cached data available';
-
-    const subtext = emptyState.createDiv({ cls: 'sync-empty-subtext' });
-    subtext.textContent = 'Click the button below to fetch your saved items from Reddit';
+    message.textContent = 'See what\u2019s new on Reddit and manage your imports.';
 
     const refreshBtn = emptyState.createEl('button', {
-      text: this.isLoading ? 'Fetching...' : 'Refresh from Reddit',
+      text: this.isLoading ? 'Fetching...' : 'Fetch from Reddit',
       cls: 'sync-empty-refresh-btn',
     });
     refreshBtn.disabled = this.isLoading;
@@ -396,9 +425,17 @@ export class SyncManagerModal extends Modal {
 
     if (this.displayedItems.length === 0) {
       const emptyMsg = this.listContainer.createDiv({ cls: 'sync-empty-msg' });
-      emptyMsg.textContent = this.searchQuery
-        ? 'No items match your search'
-        : `No ${this.activeTab === 'all' ? '' : this.activeTab + ' '}items to display`;
+      if (this.searchQuery) {
+        emptyMsg.textContent = 'No items match your search';
+      } else if (this.activeTab === 'pending') {
+        const counts = this.computeStatusCounts();
+        emptyMsg.textContent = counts.imported > 0
+          ? `All caught up \u2014 ${counts.imported} items in your vault. No new items to import.`
+          : 'No items ready to import.';
+      } else {
+        const tabLabel = this.activeTab === 'all' ? '' : this.getStatusLabel(this.activeTab as SyncStatus).toLowerCase() + ' ';
+        emptyMsg.textContent = `No ${tabLabel}items to display`;
+      }
       this.updateStats();
       return;
     }
@@ -412,6 +449,11 @@ export class SyncManagerModal extends Modal {
 
   private getFilteredItems(): SyncItem[] {
     let items = this.syncManager.getAllSyncItems();
+
+    // Exclude unsaved items unless toggle is on
+    if (!this.showUnsaved && this.activeTab !== 'orphaned') {
+      items = items.filter(i => i.status !== 'orphaned');
+    }
 
     // Filter by tab
     if (this.activeTab !== 'all') {
@@ -566,7 +608,7 @@ export class SyncManagerModal extends Modal {
     // Orphan info
     if (syncItem.status === 'orphaned') {
       const orphanEl = content.createEl('div', { cls: 'sync-orphan-info' });
-      orphanEl.textContent = 'No longer on Reddit - file preserved in vault';
+      orphanEl.textContent = 'Unsaved from Reddit \u2014 file preserved in vault';
     }
 
     // Vault path (for imported items)
@@ -596,25 +638,39 @@ export class SyncManagerModal extends Modal {
   private updateActionBar() {
     this.actionBar.empty();
 
+    // Selected count (left-aligned)
+    if (this.selectedItems.size > 0) {
+      const countEl = this.actionBar.createSpan({ cls: 'sync-selected-count' });
+      countEl.textContent = `${this.selectedItems.size} selected`;
+    }
+
+    // Spacer to push buttons right
+    this.actionBar.createDiv({ cls: 'sync-action-spacer' });
+
+    const hasSelection = this.selectedItems.size > 0;
+
     // Import button (for pending/filtered tabs)
     if (['all', 'pending', 'filtered'].includes(this.activeTab)) {
       const importBtn = this.actionBar.createEl('button', { text: 'Import selected' });
       importBtn.addClass('mod-cta');
-      importBtn.title = 'Keyboard: i';
+      importBtn.disabled = !hasSelection;
+      importBtn.title = hasSelection ? 'Import selected items (i)' : 'Select items to import';
       importBtn.onclick = () => void this.handleImport();
     }
 
     // Reprocess button (for imported tab)
     if (['all', 'imported'].includes(this.activeTab)) {
       const reprocessBtn = this.actionBar.createEl('button', { text: 'Reprocess selected' });
-      reprocessBtn.title = 'Keyboard: r';
+      reprocessBtn.disabled = !hasSelection;
+      reprocessBtn.title = hasSelection ? 'Re-fetch and update selected items (r)' : 'Select items to reprocess';
       reprocessBtn.onclick = () => void this.handleReprocess();
     }
 
     // Unsave button (for all tabs)
     const unsaveBtn = this.actionBar.createEl('button', { text: 'Unsave selected' });
     unsaveBtn.addClass('mod-warning');
-    unsaveBtn.title = 'Keyboard: u';
+    unsaveBtn.disabled = !hasSelection;
+    unsaveBtn.title = hasSelection ? 'Remove selected from Reddit saved list (u)' : 'Select items to unsave';
     unsaveBtn.onclick = () => void this.handleUnsave();
 
     // Close button
@@ -626,15 +682,21 @@ export class SyncManagerModal extends Modal {
     const { contentEl } = this;
     const hints = contentEl.createDiv({ cls: 'sync-keyboard-hints' });
 
-    hints.innerHTML = `
-      <span><kbd>↑↓</kbd> Navigate</span>
-      <span><kbd>Space</kbd> Toggle</span>
-      <span><kbd>⌘A</kbd> Select all</span>
-      <span><kbd>i</kbd> Import</span>
-      <span><kbd>r</kbd> Reprocess</span>
-      <span><kbd>u</kbd> Unsave</span>
-      <span><kbd>Esc</kbd> Close</span>
-    `;
+    const shortcuts = [
+      ['\u2191\u2193', 'Navigate'],
+      ['Space', 'Toggle'],
+      ['\u2318A', 'Select all'],
+      ['i', 'Import'],
+      ['r', 'Reprocess'],
+      ['u', 'Unsave'],
+      ['Esc', 'Close'],
+    ];
+
+    for (const [key, label] of shortcuts) {
+      const span = hints.createSpan();
+      span.createEl('kbd', { text: key });
+      span.appendText(` ${label}`);
+    }
   }
 
   // Helper methods
@@ -651,15 +713,15 @@ export class SyncManagerModal extends Modal {
   private getStatusIcon(status: SyncStatus): string {
     switch (status) {
       case 'imported':
-        return '✓';
+        return '\u2713';
       case 'pending':
-        return '○';
+        return '\u25CB';
       case 'filtered':
-        return '⚠';
+        return '\u26A0';
       case 'override-pending':
-        return '→';
+        return '\u2192';
       case 'orphaned':
-        return '⊘';
+        return '\u2298';
     }
   }
 
@@ -674,22 +736,37 @@ export class SyncManagerModal extends Modal {
       case 'override-pending':
         return 'var(--color-purple, #9966cc)';
       case 'orphaned':
-        return 'var(--text-error)';
+        return 'var(--text-muted)';
     }
   }
 
   private getStatusTooltip(syncItem: SyncItem): string {
     switch (syncItem.status) {
       case 'imported':
-        return `Already in vault: ${syncItem.vaultPath}`;
+        return `In vault: ${syncItem.vaultPath}`;
       case 'pending':
-        return 'Ready to import';
+        return 'Ready to import into your vault';
       case 'filtered':
-        return `Would be filtered: ${syncItem.filterResult?.reason}`;
+        return `Skipped by filter: ${syncItem.filterResult?.reason}`;
       case 'override-pending':
-        return 'Filter overridden - will be imported';
+        return 'Filter overridden \u2014 will be imported';
       case 'orphaned':
-        return 'In vault but no longer on Reddit';
+        return 'Imported, then unsaved from Reddit. File preserved in vault.';
+    }
+  }
+
+  private getStatusLabel(status: SyncStatus): string {
+    switch (status) {
+      case 'imported':
+        return 'In Vault';
+      case 'pending':
+        return 'Ready';
+      case 'filtered':
+        return 'Skipped';
+      case 'override-pending':
+        return 'Will Import';
+      case 'orphaned':
+        return 'Unsaved';
     }
   }
 

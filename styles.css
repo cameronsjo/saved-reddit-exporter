@@ -274,6 +274,20 @@
 	padding: 6px;
 }
 
+.sync-unsaved-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 0.85em;
+	color: var(--text-muted);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.sync-unsaved-toggle input[type="checkbox"] {
+	cursor: pointer;
+}
+
 .sync-bulk-actions {
 	display: flex;
 	gap: 5px;
@@ -380,6 +394,16 @@
 	display: flex;
 	gap: 15px;
 	flex-wrap: wrap;
+}
+
+.sync-keyboard-hints kbd {
+	display: inline-block;
+	padding: 0.1em 0.35em;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 3px;
+	font-family: var(--font-monospace);
+	font-size: 0.95em;
 }
 
 .confirmation-button-container {
@@ -489,6 +513,16 @@
 	background: var(--background-secondary);
 	align-items: center;
 	flex-wrap: wrap;
+}
+
+.sync-selected-count {
+	font-size: 0.9em;
+	font-weight: 500;
+	color: var(--text-accent);
+}
+
+.sync-action-spacer {
+	flex: 1;
 }
 
 .sync-action-bar .keyboard-hints {
