@@ -191,6 +191,12 @@ export default class RedditSavedPlugin extends Plugin {
       this.settings.unsaveMode = 'auto';
       await this.saveSettings();
     }
+
+    // Migration: rename 'import' tab to 'content'
+    if (savedData?.activeSettingsTab === 'import') {
+      this.settings.activeSettingsTab = 'content';
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {
