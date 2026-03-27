@@ -1108,6 +1108,69 @@
 	border-top: 1px solid var(--background-modifier-border);
 }
 
+/* Collapsible sections — keyboard-accessible accordion with persisted state */
+.sre-section-header {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0.75em 1em;
+	margin-top: 0.5em;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.1s ease;
+}
+
+.sre-section-header:hover {
+	background: var(--background-modifier-hover);
+}
+
+.sre-section-header:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: -2px;
+}
+
+.sre-section-chevron {
+	display: flex;
+	align-items: center;
+	transition: transform 0.15s ease;
+}
+
+.sre-section-chevron svg {
+	width: 14px;
+	height: 14px;
+	color: var(--text-muted);
+}
+
+.sre-section-header.is-expanded .sre-section-chevron {
+	transform: rotate(90deg);
+}
+
+.sre-section-title {
+	font-weight: 500;
+	font-size: 0.95em;
+}
+
+.sre-section-content {
+	display: none;
+	padding: 0.75em 1em;
+	margin-bottom: 0.5em;
+	border: 1px solid var(--background-modifier-border);
+	border-top: none;
+	border-radius: 0 0 6px 6px;
+}
+
+.sre-section-content.is-expanded {
+	display: block;
+}
+
+/* When header is expanded, square off bottom corners so content joins flush */
+.sre-section-header.is-expanded {
+	border-radius: 6px 6px 0 0;
+	margin-bottom: 0;
+}
+
 /* Info boxes for guidance text */
 .settings-info-box {
 	padding: 1em;

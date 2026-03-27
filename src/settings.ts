@@ -36,6 +36,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
   private settings: RedditSavedSettings;
   private saveSettings: () => Promise<void>;
   private initiateOAuth: () => Promise<void>;
+  private expandedSections = new Set<string>();
 
   constructor(
     app: App,
