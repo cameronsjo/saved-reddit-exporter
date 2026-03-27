@@ -1,8 +1,7 @@
 import { Setting } from 'obsidian';
 import { RedditSavedSettings, UnsaveMode } from '../types';
+import { REDDIT_MAX_ITEMS } from '../constants';
 import { createCollapsibleSection } from './collapsible-section';
-
-const REDDIT_MAX_ITEMS = 1000;
 
 interface ContentTabContext {
   settings: RedditSavedSettings;

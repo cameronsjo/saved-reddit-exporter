@@ -377,7 +377,7 @@
 
 .sync-orphan-info {
 	font-size: 11px;
-	color: var(--text-error);
+	color: var(--text-muted);
 	margin-top: 4px;
 }
 
@@ -1452,6 +1452,15 @@
 	}
 
 	.settings-collapsible-content {
+		padding: 0.75em;
+	}
+
+	/* New accordion sections - tighter on mobile */
+	.sre-section-header {
+		padding: 0.6em 0.75em;
+	}
+
+	.sre-section-content {
 		padding: 0.75em;
 	}
 

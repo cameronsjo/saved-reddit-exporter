@@ -251,10 +251,10 @@ export function renderFiltersTab(containerEl: HTMLElement, ctx: FiltersTabContex
         .setValue(filters.minUpvoteRatio !== null ? String(filters.minUpvoteRatio) : '')
         .onChange(async value => {
           const num = parseFloat(value);
-          if (!isNaN(num) && num >= 0 && num <= 1) {
-            filters.minUpvoteRatio = num;
-          } else if (value === '') {
+          if (value === '') {
             filters.minUpvoteRatio = null;
+          } else if (!isNaN(num)) {
+            filters.minUpvoteRatio = Math.min(1, Math.max(0, num));
           }
           await saveSettings();
         })

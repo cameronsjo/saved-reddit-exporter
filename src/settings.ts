@@ -70,6 +70,11 @@ export class RedditSavedSettingTab extends PluginSettingTab {
       case 'advanced':
         renderAdvancedTab(contentEl, ctx);
         break;
+      default:
+        this.settings.activeSettingsTab = 'setup';
+        void this.saveSettings();
+        renderSetupTab(contentEl, { ...ctx, initiateOAuth: this.initiateOAuth });
+        break;
     }
   }
 

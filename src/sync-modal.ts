@@ -451,7 +451,7 @@ export class SyncManagerModal extends Modal {
     let items = this.syncManager.getAllSyncItems();
 
     // Exclude unsaved items unless toggle is on
-    if (!this.showUnsaved && this.activeTab !== 'orphaned') {
+    if (!this.showUnsaved) {
       items = items.filter(i => i.status !== 'orphaned');
     }
 
@@ -771,9 +771,7 @@ export class SyncManagerModal extends Modal {
   }
 
   private formatScore(score: number): string {
-    if (score >= 10000) {
-      return (score / 1000).toFixed(1) + 'k';
-    } else if (score >= 1000) {
+    if (score >= 1000) {
       return (score / 1000).toFixed(1) + 'k';
     }
     return String(score);

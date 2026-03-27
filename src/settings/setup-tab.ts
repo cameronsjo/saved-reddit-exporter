@@ -189,12 +189,15 @@ function renderCredentialBackup(
         return;
       }
 
+      const isStr = (v: unknown): v is string => typeof v === 'string';
+      const isNum = (v: unknown): v is number => typeof v === 'number';
+
       settings.clientId = backup.clientId;
-      settings.clientSecret = backup.clientSecret;
-      settings.accessToken = backup.accessToken;
-      settings.refreshToken = backup.refreshToken;
-      settings.tokenExpiry = backup.tokenExpiry;
-      settings.username = backup.username;
+      settings.clientSecret = isStr(backup.clientSecret) ? backup.clientSecret : '';
+      settings.accessToken = isStr(backup.accessToken) ? backup.accessToken : '';
+      settings.refreshToken = isStr(backup.refreshToken) ? backup.refreshToken : '';
+      settings.tokenExpiry = isNum(backup.tokenExpiry) ? backup.tokenExpiry : 0;
+      settings.username = isStr(backup.username) ? backup.username : '';
 
       await saveSettings();
       redisplay();
