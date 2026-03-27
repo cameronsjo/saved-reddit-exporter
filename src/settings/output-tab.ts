@@ -109,8 +109,10 @@ export function renderOutputTab(containerEl: HTMLElement, ctx: OutputTabContext)
             const num = parseInt(value);
             if (!isNaN(num) && num >= 0) {
               settings.commentUpvoteThreshold = num;
-              await saveSettings();
+            } else {
+              text.setValue(String(settings.commentUpvoteThreshold));
             }
+            await saveSettings();
           })
       );
 
@@ -125,8 +127,10 @@ export function renderOutputTab(containerEl: HTMLElement, ctx: OutputTabContext)
             const num = parseInt(value);
             if (!isNaN(num) && num >= 0) {
               settings.maxCommentsPerPost = num;
-              await saveSettings();
+            } else {
+              text.setValue(String(settings.maxCommentsPerPost));
             }
+            await saveSettings();
           })
       );
 

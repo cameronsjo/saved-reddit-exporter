@@ -24,6 +24,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
   private settings: RedditSavedSettings;
   private saveSettings: () => Promise<void>;
   private initiateOAuth: () => Promise<void>;
+  private reconfigureServices: () => void;
   private expandedSections = new Set<string>();
 
   constructor(
@@ -31,12 +32,14 @@ export class RedditSavedSettingTab extends PluginSettingTab {
     plugin: Plugin,
     settings: RedditSavedSettings,
     saveSettings: () => Promise<void>,
-    initiateOAuth: () => Promise<void>
+    initiateOAuth: () => Promise<void>,
+    reconfigureServices: () => void,
   ) {
     super(app, plugin);
     this.settings = settings;
     this.saveSettings = saveSettings;
     this.initiateOAuth = initiateOAuth;
+    this.reconfigureServices = reconfigureServices;
   }
 
   display(): void {
@@ -68,7 +71,7 @@ export class RedditSavedSettingTab extends PluginSettingTab {
         renderFiltersTab(contentEl, ctx);
         break;
       case 'advanced':
-        renderAdvancedTab(contentEl, ctx);
+        renderAdvancedTab(contentEl, { ...ctx, reconfigureServices: this.reconfigureServices });
         break;
       default:
         this.settings.activeSettingsTab = 'setup';

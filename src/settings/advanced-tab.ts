@@ -7,10 +7,11 @@ interface AdvancedTabContext {
   saveSettings: () => Promise<void>;
   expandedSections: Set<string>;
   redisplay: () => void;
+  reconfigureServices: () => void;
 }
 
 export function renderAdvancedTab(containerEl: HTMLElement, ctx: AdvancedTabContext): void {
-  const { settings, saveSettings, expandedSections, redisplay } = ctx;
+  const { settings, saveSettings, expandedSections, redisplay, reconfigureServices } = ctx;
 
   // Performance
   new Setting(containerEl).setName('Performance & reliability').setHeading();
@@ -27,6 +28,7 @@ export function renderAdvancedTab(containerEl: HTMLElement, ctx: AdvancedTabCont
       toggle.setValue(settings.enableEnhancedMode).onChange(async value => {
         settings.enableEnhancedMode = value;
         await saveSettings();
+        reconfigureServices();
       })
     );
 
@@ -37,6 +39,7 @@ export function renderAdvancedTab(containerEl: HTMLElement, ctx: AdvancedTabCont
       toggle.setValue(settings.enableCheckpointing).onChange(async value => {
         settings.enableCheckpointing = value;
         await saveSettings();
+        reconfigureServices();
       })
     );
 

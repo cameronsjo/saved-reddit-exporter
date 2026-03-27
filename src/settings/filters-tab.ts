@@ -89,7 +89,8 @@ export function renderFiltersTab(containerEl: HTMLElement, ctx: FiltersTabContex
             : ''
         )
         .onChange(async value => {
-          const date = new Date(value);
+          // Append T00:00:00 to parse as local time, not UTC
+          const date = new Date(value + 'T00:00:00');
           filters.dateRangeStart = !isNaN(date.getTime()) ? date.getTime() : null;
           await saveSettings();
         })
@@ -102,7 +103,8 @@ export function renderFiltersTab(containerEl: HTMLElement, ctx: FiltersTabContex
           filters.dateRangeEnd ? new Date(filters.dateRangeEnd).toISOString().split('T')[0] : ''
         )
         .onChange(async value => {
-          const date = new Date(value);
+          // Append T00:00:00 to parse as local time, not UTC
+          const date = new Date(value + 'T00:00:00');
           filters.dateRangeEnd = !isNaN(date.getTime()) ? date.getTime() : null;
           await saveSettings();
         })

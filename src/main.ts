@@ -157,7 +157,8 @@ export default class RedditSavedPlugin extends Plugin {
         this,
         this.settings,
         () => this.saveSettings(),
-        () => this.auth.initiateOAuth()
+        () => this.auth.initiateOAuth(),
+        () => this.reconfigureServices(),
       )
     );
   }
@@ -201,6 +202,23 @@ export default class RedditSavedPlugin extends Plugin {
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  /**
+   * Apply current settings to live services without reloading the plugin.
+   * Called when enhanced mode or checkpointing toggles change.
+   */
+  private reconfigureServices(): void {
+    if (this.settings.enableEnhancedMode) {
+      this.apiClient.enableEnhancedFeatures(this.importStateManager);
+    } else {
+      this.apiClient.disableEnhancedFeatures();
+    }
+
+    this.importStateManager.cleanup();
+    this.importStateManager = new ImportStateManager(this.app, {
+      enableCheckpointing: this.settings.enableCheckpointing,
+    });
   }
 
   /**
