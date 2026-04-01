@@ -6,7 +6,7 @@ export type UnsaveMode = 'off' | 'prompt' | 'auto';
 export type CommentSortOrder = 'top' | 'best' | 'controversial' | 'new' | 'old' | 'qa';
 
 /** Settings tab for organized settings UI */
-export type SettingsTab = 'setup' | 'import' | 'filters' | 'advanced';
+export type SettingsTab = 'setup' | 'content' | 'output' | 'filters' | 'advanced';
 
 /**
  * Templater plugin interface for template processing.
