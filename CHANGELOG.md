@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.0-beta.32+5b369fd](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.2.0-beta.32+5b369fd...v1.3.0-beta.32+5b369fd) (2026-04-01)
+
+
+### Features
+
+* add enhanced progress tracking and Obsidian integration ([8bb714e](https://github.com/cameronsjo/saved-reddit-exporter/commit/8bb714e3c4b697879fbb4fc67f62336dcaf185ce))
+* **main:** rewire entry points to Sync Manager ([ae6cdfd](https://github.com/cameronsjo/saved-reddit-exporter/commit/ae6cdfd8d951c2773fab92d031a5bab5c33e4226))
+* settings reorganization and sync manager UX improvements ([f29d139](https://github.com/cameronsjo/saved-reddit-exporter/commit/f29d139b7ca06992966a8721338856ba07e1a701))
+* **settings:** add collapsible section utility with persisted state ([441c645](https://github.com/cameronsjo/saved-reddit-exporter/commit/441c64568d6e2385bfe0490be1bdd1562d4bad3f))
+* **settings:** add comment limit, sort, and depth options ([656dccd](https://github.com/cameronsjo/saved-reddit-exporter/commit/656dccd652a3bb91b12ec7f542aa12d51f2af18c))
+* **settings:** reorganize into 5 tabs with extracted render functions ([2799084](https://github.com/cameronsjo/saved-reddit-exporter/commit/27990846623d243044b7aab20c4f50336fea51a3))
+* **sync-manager:** add cache methods for instant modal open ([c97040f](https://github.com/cameronsjo/saved-reddit-exporter/commit/c97040f078124b1a2f1289402abe44a98c4d95a7))
+* **sync-modal:** add checkpoint resume banner ([dca3272](https://github.com/cameronsjo/saved-reddit-exporter/commit/dca3272960a0e2624f7d90330e12d7a0090bc2c8))
+* **sync-modal:** add refresh button, timestamp, and empty state ([c98aa94](https://github.com/cameronsjo/saved-reddit-exporter/commit/c98aa94196961a7a38b5d2a165d53a2058a47619))
+* **sync:** improve sync manager UX with better labels and controls ([34c64c1](https://github.com/cameronsjo/saved-reddit-exporter/commit/34c64c168f967863c88c12d04ff46cc115ec1220))
+* **types:** add SyncCache interface for instant sync manager open ([3a54da3](https://github.com/cameronsjo/saved-reddit-exporter/commit/3a54da3012b772428d1f3dbda45824021b221113))
+
+
+### Bug Fixes
+
+* address CodeRabbit review feedback ([533225f](https://github.com/cameronsjo/saved-reddit-exporter/commit/533225f3883d1e6c6837feb1319078946c12909e))
+* address pre-existing issues flagged by CodeRabbit ([fb8ec9b](https://github.com/cameronsjo/saved-reddit-exporter/commit/fb8ec9bb955bd969ac6eba2f250755e50a4c86d4))
+* **security:** address XSS vulnerabilities and resource leaks ([323fbff](https://github.com/cameronsjo/saved-reddit-exporter/commit/323fbffa7165eb9e8a19f2ec77724a8db5390012))
+* **sync:** remove duplicate CSS and dead styles from sync modal ([a9497de](https://github.com/cameronsjo/saved-reddit-exporter/commit/a9497defa2eedd023d0ee8040b2f099ab328e312))
+
 ## [1.2.0-beta.32+5b369fd](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.1.1-beta.32+5b369fd...v1.2.0-beta.32+5b369fd) (2026-01-02)
 
 
