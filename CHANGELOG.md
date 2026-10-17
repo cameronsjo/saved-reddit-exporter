@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1-beta.32+5b369fd](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.3.0-beta.32+5b369fd...v1.3.1-beta.32+5b369fd) (2026-10-17)
+
+
+### Bug Fixes
+
+* **deps:** clear high and critical npm audit findings ([f129216](https://github.com/cameronsjo/saved-reddit-exporter/commit/f1292160e261799cff67de2a228c41f3664508f1))
+* **deps:** clear high and critical npm audit findings ([162a83a](https://github.com/cameronsjo/saved-reddit-exporter/commit/162a83a3c715061c353b89b4f9acf9dab95ab788))
+
 ## [1.3.0-beta.32+5b369fd](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.2.0-beta.32+5b369fd...v1.3.0-beta.32+5b369fd) (2026-04-01)
 
 
