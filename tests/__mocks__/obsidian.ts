@@ -122,11 +122,11 @@ export class Setting {
   }
 }
 
-export class Notice {
-  constructor(message: string) {
-    console.log(`Notice: ${message}`);
-  }
-}
+// A jest.fn so tests can assert on it: Jest 30 loads this manual mock as-is
+// instead of automocking its exports.
+export const Notice = jest.fn(function Notice(message: string) {
+  console.log(`Notice: ${message}`);
+});
 
 // Helper to create mock HTML element with Obsidian's extensions
 function createMockElement(tag = 'div'): HTMLElement {
@@ -190,14 +190,16 @@ export class TextComponent {
   }
 }
 
-export function requestUrl(_params: unknown) {
-  return Promise.resolve({
+// A jest.fn so tests can stub it: Jest 30 loads this manual mock as-is
+// instead of automocking its exports.
+export const requestUrl = jest.fn((_params: unknown) =>
+  Promise.resolve({
     status: 200,
     json: {},
     arrayBuffer: new ArrayBuffer(0),
     headers: {},
-  });
-}
+  })
+);
 
 export function normalizePath(path: string) {
   return path.replace(/\\/g, '/');
