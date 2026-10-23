@@ -608,9 +608,9 @@ class AuthCodeModal extends Modal {
     const buttonContainer = contentEl.createDiv();
     buttonContainer.setCssProps({
       display: 'flex',
-      justifyContent: 'flex-end',
+      'justify-content': 'flex-end',
       gap: '10px',
-      marginTop: '20px',
+      'margin-top': '20px',
     });
 
     const cancelButton = buttonContainer.createEl('button', { text: 'Cancel' });
