@@ -74,7 +74,7 @@ jobs:
           SHORT_SHA=$(git rev-parse --short HEAD)
 
           # Count commits since last stable release tag (X.Y.Z format, not prereleases)
-          LAST_STABLE=$(git tag -l --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+          LAST_STABLE=$(git tag -l --sort=-v:refname | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
           if [ -n "$LAST_STABLE" ]; then
             COMMIT_COUNT=$(git rev-list --count ${LAST_STABLE}..HEAD)
           else
