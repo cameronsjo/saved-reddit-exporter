@@ -56,6 +56,11 @@ describe('setCssProps keys', () => {
       'justifyContent',
     ]);
     expect(findCamelCaseKeys("{ 'margin-top': '20px', '--my-var': '1' }")).toEqual([]);
+    expect(
+      findCamelCaseKeys(
+        "{\n  display: 'flex',\n  justifyContent: 'flex-end',\n  alignItems: 'center',\n}"
+      )
+    ).toEqual(['justifyContent', 'alignItems']);
   });
 
   it('uses no camelCase keys in src', () => {
