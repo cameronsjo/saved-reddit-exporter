@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.3](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.3.2...v1.3.3) (2026-10-24)
+
+
+### Bug Fixes
+
+* **ci:** let release-please recognize its own merged release PR ([0d63ab5](https://github.com/cameronsjo/saved-reddit-exporter/commit/0d63ab5c86a650e654f8a1df101cfb2955437eec))
+* **ci:** let release-please recognize its own merged release PR ([58446de](https://github.com/cameronsjo/saved-reddit-exporter/commit/58446de6527e361edc9d3838163a89b8e9a6bd39))
+
 ## [1.3.2](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.3.1...v1.3.2) (2026-10-24)
 
 
