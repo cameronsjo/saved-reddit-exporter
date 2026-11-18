@@ -86,10 +86,12 @@ export class ContentFormatter {
     content += `type: ${this.getFrontmatterType(isComment, contentOrigin)}\n`;
     content += `content_origin: ${contentOrigin}\n`;
 
-    // Subreddit - optionally linkified for Obsidian graph
+    // Subreddit - lowercased to match the (already lowercase) folder names,
+    // optionally linkified for Obsidian graph
+    const subredditName = effectiveData.subreddit.toLowerCase();
     const subredditValue = this.settings.linkifySubreddits
-      ? `"[[r/${effectiveData.subreddit}]]"`
-      : effectiveData.subreddit;
+      ? `"[[r/${subredditName}]]"`
+      : subredditName;
     content += `subreddit: ${subredditValue}\n`;
 
     // Author - optionally linkified for Obsidian graph
@@ -116,8 +118,8 @@ export class ContentFormatter {
     // Add crosspost metadata if enabled and applicable
     if (isCrosspost && this.settings.preserveCrosspostMetadata) {
       content += `is_crosspost: true\n`;
-      content += `crosspost_subreddit: ${data.subreddit}\n`;
-      content += `original_subreddit: ${data.crosspost_parent_list![0].subreddit}\n`;
+      content += `crosspost_subreddit: ${data.subreddit.toLowerCase()}\n`;
+      content += `original_subreddit: ${data.crosspost_parent_list![0].subreddit.toLowerCase()}\n`;
       content += `original_author: ${data.crosspost_parent_list![0].author}\n`;
       content += `original_id: ${data.crosspost_parent_list![0].id}\n`;
     }

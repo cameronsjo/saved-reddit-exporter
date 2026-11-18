@@ -745,6 +745,139 @@ describe('ContentFormatter', () => {
     });
   });
 
+  describe('subreddit frontmatter casing', () => {
+    const mixedCasePost: RedditItemData = {
+      id: 'case123',
+      name: 't3_case123',
+      title: 'Mixed Case Post',
+      author: 'someone',
+      subreddit: 'ClaudeAI',
+      permalink: '/r/ClaudeAI/comments/case123/mixed_case_post/',
+      created_utc: 1640995200,
+      score: 10,
+      num_comments: 1,
+      is_self: true,
+      selftext: 'body text',
+    };
+
+    it('should write the subreddit in lowercase while the body keeps display case', async () => {
+      const result = await formatter.formatRedditContent(mixedCasePost, false);
+
+      expect(result).toContain('subreddit: claudeai\n');
+      expect(result).not.toContain('subreddit: ClaudeAI');
+      // Body header, not the permalink line in frontmatter, which also contains r/ClaudeAI
+      expect(result).toContain('**r/ClaudeAI**');
+    });
+
+    it('should write a lowercase linkified subreddit when linkifySubreddits is on', async () => {
+      const linkifyFormatter = new ContentFormatter(
+        { ...mockSettings, linkifySubreddits: true },
+        mockMediaHandler
+      );
+
+      const result = await linkifyFormatter.formatRedditContent(mixedCasePost, false);
+
+      expect(result).toContain('subreddit: "[[r/claudeai]]"');
+      expect(result).not.toContain('[[r/ClaudeAI]]');
+    });
+
+    it('should lowercase the subreddit in comment frontmatter', async () => {
+      const comment: RedditItemData = {
+        id: 'ccase1',
+        name: 't1_ccase1',
+        author: 'commenter',
+        subreddit: 'ClaudeAI',
+        permalink: '/r/ClaudeAI/comments/case123/title/ccase1/',
+        created_utc: 1640995200,
+        score: 5,
+        body: 'a comment',
+        link_title: 'Mixed Case Post',
+        link_permalink: '/r/ClaudeAI/comments/case123/title/',
+        is_submitter: false,
+      };
+
+      const result = await formatter.formatRedditContent(comment, true);
+
+      expect(result).toContain('subreddit: claudeai\n');
+      // Comment callout line, not the permalink line in frontmatter
+      expect(result).toContain('> r/ClaudeAI ·');
+    });
+
+    it('should lowercase the subreddit taken from the original when importCrosspostOriginal is on', async () => {
+      const originalFormatter = new ContentFormatter(
+        { ...mockSettings, preserveCrosspostMetadata: true, importCrosspostOriginal: true },
+        mockMediaHandler
+      );
+      const crosspost: RedditItemData = {
+        ...mixedCasePost,
+        id: 'xcase2',
+        name: 't3_xcase2',
+        subreddit: 'NewSubReddit',
+        crosspost_parent: 't3_orig2',
+        crosspost_parent_list: [
+          {
+            id: 'orig2',
+            name: 't3_orig2',
+            subreddit: 'OriginalSubReddit',
+            author: 'originalauthor',
+            title: 'Original Title',
+            selftext: 'Original content',
+            created_utc: 1640994200,
+            score: 500,
+            permalink: '/r/OriginalSubReddit/comments/orig2/',
+            is_self: true,
+          },
+        ],
+      };
+
+      const result = await originalFormatter.formatRedditContent(crosspost, false);
+
+      expect(result).toContain('subreddit: originalsubreddit\n');
+      expect(result).toContain('crosspost_subreddit: newsubreddit\n');
+      expect(result).toContain('original_subreddit: originalsubreddit\n');
+    });
+
+    it('should lowercase crosspost_subreddit and original_subreddit', async () => {
+      const crosspostFormatter = new ContentFormatter(
+        { ...mockSettings, preserveCrosspostMetadata: true, importCrosspostOriginal: false },
+        mockMediaHandler
+      );
+      const crosspost: RedditItemData = {
+        ...mixedCasePost,
+        id: 'xcase1',
+        name: 't3_xcase1',
+        subreddit: 'NewSubReddit',
+        crosspost_parent: 't3_orig1',
+        crosspost_parent_list: [
+          {
+            id: 'orig1',
+            name: 't3_orig1',
+            subreddit: 'OriginalSubReddit',
+            author: 'originalauthor',
+            title: 'Original Title',
+            created_utc: 1640994200,
+            score: 1000,
+            permalink: '/r/OriginalSubReddit/comments/orig1/',
+          },
+        ],
+      };
+
+      const result = await crosspostFormatter.formatRedditContent(crosspost, false);
+
+      expect(result).toContain('subreddit: newsubreddit\n');
+      expect(result).toContain('crosspost_subreddit: newsubreddit\n');
+      expect(result).toContain('original_subreddit: originalsubreddit\n');
+    });
+
+    it('should not mutate the item data', async () => {
+      const data: RedditItemData = { ...mixedCasePost };
+
+      await formatter.formatRedditContent(data, false);
+
+      expect(data.subreddit).toBe('ClaudeAI');
+    });
+  });
+
   describe('comment metadata', () => {
     it('should include parent_id and parent_type for comments', async () => {
       const commentData: RedditItemData = {
