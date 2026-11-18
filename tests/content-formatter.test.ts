@@ -869,6 +869,15 @@ describe('ContentFormatter', () => {
       expect(result).toContain('original_subreddit: originalsubreddit\n');
     });
 
+    it('should leave an already-lowercase subreddit unchanged', async () => {
+      const result = await formatter.formatRedditContent(
+        { ...mixedCasePost, subreddit: 'claudeai' },
+        false
+      );
+
+      expect(result).toContain('subreddit: claudeai\n');
+    });
+
     it('should not mutate the item data', async () => {
       const data: RedditItemData = { ...mixedCasePost };
 

@@ -339,6 +339,29 @@ describe('Exporter', () => {
       });
     });
 
+    it('should merge mixed-case values of one subreddit into a single lowercase bucket', async () => {
+      const files = [
+        createMockFile('Reddit Saved/old1.md'),
+        createMockFile('Reddit Saved/old2.md'),
+        createMockFile('Reddit Saved/new1.md'),
+      ];
+      (mockApp.vault.getMarkdownFiles as jest.Mock).mockReturnValue(files);
+      (mockApp.metadataCache.getFileCache as jest.Mock)
+        .mockReturnValueOnce({
+          frontmatter: { type: 'reddit-post', id: '1', subreddit: 'ClaudeAI' },
+        })
+        .mockReturnValueOnce({
+          frontmatter: { type: 'reddit-post', id: '2', subreddit: 'ClaudeAi' },
+        })
+        .mockReturnValueOnce({
+          frontmatter: { type: 'reddit-post', id: '3', subreddit: 'claudeai' },
+        });
+
+      const stats = await exporter.getExportStats();
+
+      expect(stats.bySubreddit).toEqual({ claudeai: 3 });
+    });
+
     it('should handle unknown subreddit and type', async () => {
       const mockFile = createMockFile('Reddit Saved/mystery.md');
       (mockApp.vault.getMarkdownFiles as jest.Mock).mockReturnValue([mockFile]);
