@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.4](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.3.3...v1.3.4) (2026-11-19)
+
+
+### Bug Fixes
+
+* **export:** group subreddit stats case-insensitively ([280e486](https://github.com/cameronsjo/saved-reddit-exporter/commit/280e4866968fdd63a05bf99affe52debf6f26019))
+* **frontmatter:** lowercase subreddit values ([49a3e02](https://github.com/cameronsjo/saved-reddit-exporter/commit/49a3e02f3209ec110cdcfe472966f640760d486b))
+* **frontmatter:** lowercase subreddit values ([afcd24b](https://github.com/cameronsjo/saved-reddit-exporter/commit/afcd24b40f200641e459f75dab8c776d7e7c3880))
+
 ## [1.3.3](https://github.com/cameronsjo/saved-reddit-exporter/compare/v1.3.2...v1.3.3) (2026-10-24)
 
 
