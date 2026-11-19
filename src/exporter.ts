@@ -271,7 +271,8 @@ export class Exporter {
     const byType: Record<string, number> = {};
 
     for (const item of exportPackage.items) {
-      const subreddit = item.metadata.subreddit || 'unknown';
+      // Lowercased so notes written before and after frontmatter lowercasing share one bucket
+      const subreddit = (item.metadata.subreddit || 'unknown').toLowerCase();
       const type = item.metadata.type || 'unknown';
 
       bySubreddit[subreddit] = (bySubreddit[subreddit] || 0) + 1;
